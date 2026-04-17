@@ -1,0 +1,89 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>NexusForge</AssemblyName>
+    <ApplicationIcon>nexusforge.ico</ApplicationIcon>
+    <RootNamespace>NexusForge</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>NexusForge</Product>
+    <Company>NexusForge</Company>
+    <Authors>NexusForge</Authors>
+    <Copyright>Copyright © 2026 NexusForge. All rights reserved.</Copyright>
+    <Description>FPGA DMA board management tool.</Description>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <NeutralLanguage>en</NeutralLanguage>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageReference Include="Obfuscar" Version="2.2.38" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/openocd/openocd.exe" />
+    <EmbeddedResource Include="Resources/openocd/libhidapi-0.dll" />
+    <EmbeddedResource Include="Resources/openocd/libusb-1.0.dll" />
+    <EmbeddedResource Include="Resources/openocd/ch347.cfg" />
+    <EmbeddedResource Include="Resources/openocd/xilinx-xc7.cfg" />
+    <EmbeddedResource Include="Resources/openocd/xilinx-dna.cfg" />
+    <EmbeddedResource Include="Resources/openocd/jtagspi.cfg" />
+    <EmbeddedResource Include="Resources/openocd/bscan_spi_xc7a35t.bit" />
+    <EmbeddedResource Include="Resources/openocd/bscan_spi_xc7a50t.bit" />
+    <EmbeddedResource Include="Resources/openocd/bscan_spi_xc7a75t.bit" />
+    <EmbeddedResource Include="Resources/openocd/bscan_spi_xc7a100t.bit" />
+    <EmbeddedResource Include="Resources/openocd/bscan_spi_xc7a200t.bit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/ftdi_driver/FTD3XXWU.Inf" />
+    <EmbeddedResource Include="Resources/ftdi_driver/FTD3XXWU.cat" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/drivers/CH341WDM.INF" />
+    <EmbeddedResource Include="Resources/drivers/CH341WDM.CAT" />
+    <EmbeddedResource Include="Resources/drivers/CH341WDM.SYS" />
+    <EmbeddedResource Include="Resources/drivers/CH341W64.SYS" />
+    <EmbeddedResource Include="Resources/drivers/CH341M64.SYS" />
+    <EmbeddedResource Include="Resources/drivers/CH341DLL.DLL" />
+    <EmbeddedResource Include="Resources/drivers/CH341DLLA64.DLL" />
+    <EmbeddedResource Include="Resources/drivers/CH347DLL.DLL" />
+    <EmbeddedResource Include="Resources/drivers/CH347DLLA64.DLL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/dma/vmm.dll" />
+    <EmbeddedResource Include="Resources/dma/leechcore.dll" />
+    <EmbeddedResource Include="Resources/dma/leechcore_driver.dll" />
+    <EmbeddedResource Include="Resources/dma/FTD3XX.dll" />
+    <EmbeddedResource Include="Resources/dma/FTD3XXWU.dll" />
+    <EmbeddedResource Include="Resources/dma/dbghelp.dll" />
+    <EmbeddedResource Include="Resources/dma/symsrv.dll" />
+    <EmbeddedResource Include="Resources/dma/tinylz4.dll" />
+    <EmbeddedResource Include="Resources/dma/vcruntime140.dll" />
+  </ItemGroup>
+
+</Project>

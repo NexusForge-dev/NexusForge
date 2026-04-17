@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NexusForge.ViewModels"
+             x:Class="NexusForge.Views.Controls.BoardInfoPanel"
+             x:DataType="vm:BoardInfoViewModel">
+
+  <Border Background="#161B22"
+          BorderBrush="#21262D"
+          BorderThickness="1"
+          CornerRadius="8">
+    <StackPanel>
+
+      <!-- ── Section header ── -->
+      <Border BorderBrush="#21262D" BorderThickness="0,0,0,1" Padding="16,12,16,12">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+
+          <!-- Left accent + title -->
+          <Border Grid.Column="0" Background="#00D4AA" Width="3" CornerRadius="2"
+                  VerticalAlignment="Stretch" Margin="0,0,10,0" />
+          <TextBlock Grid.Column="1"
+                     Text="BOARD CONNECTION"
+                     FontSize="11" FontWeight="SemiBold"
+                     Foreground="#E6EDF3"
+                     VerticalAlignment="Center" />
+
+          <!-- Detect button -->
+          <Button Grid.Column="2"
+                  Classes="primary"
+                  Command="{Binding DetectBoardCommand}"
+                  IsEnabled="{Binding !IsDetecting}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="⟳" FontSize="14" VerticalAlignment="Center" IsVisible="{Binding IsDetecting}" />
+              <TextBlock Text="Detect Board" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+        </Grid>
+      </Border>
+
+      <!-- ── Detecting indicator ── -->
+      <Border Padding="16,8,16,0" IsVisible="{Binding IsDetecting}">
+        <ProgressBar IsIndeterminate="True"
+                     Foreground="#00D4AA" Background="#21262D"
+                     Height="4" CornerRadius="2" MinHeight="4" />
+      </Border>
+
+      <!-- ── Connection status row ── -->
+      <Border Padding="16,10,16,0">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Ellipse Width="9" Height="9"
+                   Fill="{Binding ConnectionStatusColor}"
+                   VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding ConnectionStatus}"
+                     Foreground="#C9D1D9" FontSize="12"
+                     VerticalAlignment="Center"/>
+        </StackPanel>
+      </Border>
+
+      <!-- ── Info table ── -->
+      <Border Padding="16,10,16,0">
+        <Grid ColumnDefinitions="80,*" RowDefinitions="Auto,Auto,Auto,Auto">
+
+          <!-- Device -->
+          <TextBlock Text="Device" Foreground="#6E7681" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="0" Margin="0,0,0,8"/>
+          <TextBlock Text="{Binding DeviceName}" Foreground="#C9D1D9" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <!-- IDCODE -->
+          <TextBlock Text="IDCODE" Foreground="#6E7681" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="1" Margin="0,0,0,8"/>
+          <TextBlock Text="{Binding IdCode}" Foreground="#C9D1D9" FontSize="12"
+                     FontFamily="Consolas,Courier New,monospace"
+                     VerticalAlignment="Center" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <!-- Package -->
+          <TextBlock Text="Package" Foreground="#6E7681" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="2" Margin="0,0,0,8"/>
+          <TextBlock Text="{Binding PackageName}" Foreground="#C9D1D9" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <!-- Cable -->
+          <TextBlock Text="Cable" Foreground="#6E7681" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="3"/>
+          <TextBlock Text="{Binding CableType}" Foreground="#C9D1D9" FontSize="12"
+                     VerticalAlignment="Center" Grid.Row="3" Grid.Column="1"/>
+
+        </Grid>
+      </Border>
+
+      <!-- ── DNA row ── -->
+      <Border Margin="16,12,16,14"
+              Background="#0D1117"
+              BorderBrush="#21262D"
+              BorderThickness="1"
+              CornerRadius="6"
+              Padding="14,10">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+
+          <!-- DNA label -->
+          <Border Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
+            <TextBlock Text="DNA"
+                       Foreground="#6E7681" FontSize="10" FontWeight="SemiBold" />
+          </Border>
+
+          <!-- DNA value -->
+          <TextBlock Grid.Column="1"
+                     Text="{Binding DnaFormatted, FallbackValue='─  ─  ─  ─  ─  ─  ─  ─'}"
+                     Foreground="#00D4AA" FontSize="13"
+                     FontFamily="Consolas,Courier New,monospace"
+                     VerticalAlignment="Center" />
+
+          <!-- Copy button -->
+          <Button Grid.Column="2"
+                  Classes="teal-outline"
+                  Command="{Binding CopyDnaCommand}"
+                  Padding="10,4"
+                  Margin="12,0,0,0">
+            Copy
+          </Button>
+
+        </Grid>
+      </Border>
+
+    </StackPanel>
+  </Border>
+</UserControl>

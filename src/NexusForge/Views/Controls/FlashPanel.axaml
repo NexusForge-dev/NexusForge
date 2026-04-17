@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NexusForge.ViewModels"
+             x:Class="NexusForge.Views.Controls.FlashPanel"
+             x:DataType="vm:FlashViewModel">
+
+  <Border Background="#161B22"
+          BorderBrush="#21262D"
+          BorderThickness="1"
+          CornerRadius="8">
+    <StackPanel>
+
+      <!-- ── Section header ── -->
+      <Border BorderBrush="#21262D" BorderThickness="0,0,0,1" Padding="16,12,16,12">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+
+          <!-- Left accent + title -->
+          <Border Grid.Column="0" Background="#58A6FF" Width="3" CornerRadius="2"
+                  VerticalAlignment="Stretch" Margin="0,0,10,0" />
+          <TextBlock Grid.Column="1"
+                     Text="FIRMWARE FLASH"
+                     FontSize="11" FontWeight="SemiBold"
+                     Foreground="#E6EDF3"
+                     VerticalAlignment="Center" />
+
+          <!-- Browse button -->
+          <Button Grid.Column="2"
+                  Classes="primary"
+                  Command="{Binding BrowseFileCommand}">
+            Browse
+          </Button>
+
+        </Grid>
+      </Border>
+
+      <!-- ── File info row ── -->
+      <Border Padding="16,12,16,0">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
+
+          <!-- Filename label -->
+          <TextBlock Grid.Row="0" Grid.Column="0"
+                     Text="File:" Foreground="#6E7681" FontSize="12"
+                     VerticalAlignment="Center" Margin="0,0,10,0"/>
+          <TextBlock Grid.Row="0" Grid.Column="1"
+                     Text="{Binding FirmwareFileName}"
+                     Foreground="#C9D1D9" FontSize="12"
+                     VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis"/>
+
+          <!-- Size badge -->
+          <Border Grid.Row="0" Grid.Column="2"
+                  Background="#21262D" CornerRadius="4"
+                  Padding="8,3" Margin="8,0,0,0"
+                  IsVisible="{Binding IsFileValid}">
+            <TextBlock Text="{Binding FileSizeText}"
+                       Foreground="#8B949E" FontSize="11" />
+          </Border>
+
+          <!-- Validation message -->
+          <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4"
+                     Text="{Binding FileValidationMessage}"
+                     Foreground="#E3B341" FontSize="11"
+                     Margin="0,4,0,0"
+                     IsVisible="{Binding !IsFileValid}" />
+
+        </Grid>
+      </Border>
+
+      <!-- ── Progress section ── -->
+      <Border Padding="16,12,16,0">
+        <StackPanel Spacing="6">
+
+          <!-- Progress bar + percentage -->
+          <Grid ColumnDefinitions="*,Auto">
+            <ProgressBar Grid.Column="0"
+                         Value="{Binding FlashPercentage}"
+                         Minimum="0" Maximum="100"
+                         VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="1"
+                       Foreground="#6E7681" FontSize="11"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="{}{0}%">
+                  <Binding Path="FlashPercentage"/>
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+          </Grid>
+
+          <!-- Stage + message -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="{Binding FlashStage}"
+                       Foreground="#6E7681" FontSize="11"
+                       IsVisible="{Binding IsFlashing}"/>
+            <TextBlock Text="·" Foreground="#484F58" FontSize="11"
+                       IsVisible="{Binding IsFlashing}"/>
+            <TextBlock Text="{Binding FlashMessage}"
+                       Foreground="#8B949E" FontSize="11"/>
+          </StackPanel>
+
+        </StackPanel>
+      </Border>
+
+      <!-- ── Options + action buttons ── -->
+      <Border Padding="16,12,16,14">
+        <Grid ColumnDefinitions="*,Auto">
+
+          <!-- Verify checkbox -->
+          <CheckBox Grid.Column="0"
+                    IsChecked="{Binding VerifyAfterFlash}"
+                    VerticalAlignment="Center">
+            Verify after flash
+          </CheckBox>
+
+          <!-- Flash / Cancel -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Classes="primary"
+                    Command="{Binding FlashFirmwareCommand}"
+                    Padding="20,7">
+              Flash Firmware
+            </Button>
+            <Button Classes="danger-outline"
+                    Command="{Binding CancelFlashCommand}">
+              Cancel
+            </Button>
+          </StackPanel>
+
+        </Grid>
+      </Border>
+
+    </StackPanel>
+  </Border>
+</UserControl>

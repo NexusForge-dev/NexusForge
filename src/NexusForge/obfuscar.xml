@@ -1,0 +1,36 @@
+<?xml version='1.0'?>
+<Obfuscator>
+  <Var name="InPath" value="bin\Release\net8.0\win-x64" />
+  <Var name="OutPath" value="bin\Release\net8.0\win-x64\obfuscated" />
+  <Var name="KeepPublicApi" value="false" />
+  <Var name="HidePrivateApi" value="true" />
+  <Var name="HideStrings" value="true" />
+  <Var name="UseUnicodeNames" value="true" />
+  <Var name="RenameProperties" value="true" />
+  <Var name="RenameEvents" value="true" />
+  <Var name="RenameFields" value="true" />
+  <Var name="OptimizeMethods" value="true" />
+  <Var name="SuppressIldasm" value="true" />
+  <Var name="RegenerateDebugInfo" value="false" />
+
+  <Module file="NexusForge.dll">
+    <SkipNamespace name="Avalonia*" />
+    <SkipType name="NexusForge.ViewModels.MainViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.BoardInfoViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.FlashViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.DriverViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.DmaTestViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.BaseViewModel" />
+    <SkipType name="NexusForge.ViewModels.LogLevelToColorConverter" />
+    <SkipType name="NexusForge.Models.BoardInfo" skipProperties="true" />
+    <SkipType name="NexusForge.Models.FlashProgress" skipProperties="true" />
+    <SkipType name="NexusForge.Models.FlashResult" skipProperties="true" />
+    <SkipType name="NexusForge.Models.FirmwareFile" skipProperties="true" />
+    <SkipType name="NexusForge.Models.AppSettings" skipProperties="true" />
+    <SkipType name="NexusForge.Models.DriverInfo" skipProperties="true" />
+    <SkipType name="NexusForge.Models.ProcessResult" skipProperties="true" />
+    <SkipType name="NexusForge.Program" />
+    <SkipType name="NexusForge.App" />
+    <SkipType name="NexusForge.Views.*" />
+  </Module>
+</Obfuscator>
