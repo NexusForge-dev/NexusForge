@@ -1,0 +1,32 @@
+# Build outputs
+**/bin/
+**/obj/
+**/dist/
+**/obfuscated/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Temp
+*.tmp
+*.bak
+*.log
+
+# NuGet
+**/packages/
+
+# Build scripts
+install-sdk.ps1
+check-size.ps1
+
+# Obfuscar output
+Mapping.txt

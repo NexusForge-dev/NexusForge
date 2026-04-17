@@ -1,0 +1,21 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NexusForge.App"
+             RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+  <Application.Resources>
+    <SolidColorBrush x:Key="BackgroundPrimary">#1A1A2E</SolidColorBrush>
+    <SolidColorBrush x:Key="BackgroundSecondary">#16213E</SolidColorBrush>
+    <SolidColorBrush x:Key="BackgroundTertiary">#0F3460</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentPrimary">#00D4AA</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentHover">#00F5C8</SolidColorBrush>
+    <SolidColorBrush x:Key="TextPrimary">#FFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key="TextSecondary">#B0B0C0</SolidColorBrush>
+    <SolidColorBrush x:Key="SuccessBrush">#00E676</SolidColorBrush>
+    <SolidColorBrush x:Key="ErrorBrush">#FF5252</SolidColorBrush>
+    <SolidColorBrush x:Key="WarningBrush">#FFC107</SolidColorBrush>
+    <SolidColorBrush x:Key="DisabledBrush">#4A4A5E</SolidColorBrush>
+  </Application.Resources>
+</Application>

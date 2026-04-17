@@ -1,0 +1,47 @@
+<?xml version='1.0'?>
+<Obfuscator>
+  <Var name="InPath" value="D:\Firmware\NexusForge\src\NexusForge\bin\Release\net8.0\win-x64" />
+  <Var name="OutPath" value="D:\Firmware\NexusForge\src\NexusForge\bin\Release\net8.0\win-x64\obfuscated" />
+  <Var name="KeepPublicApi" value="false" />
+  <Var name="HidePrivateApi" value="true" />
+  <Var name="HideStrings" value="true" />
+  <Var name="UseUnicodeNames" value="true" />
+  <Var name="RenameProperties" value="true" />
+  <Var name="RenameEvents" value="true" />
+  <Var name="RenameFields" value="true" />
+  <Var name="OptimizeMethods" value="true" />
+  <Var name="SuppressIldasm" value="true" />
+  <Var name="RegenerateDebugInfo" value="false" />
+
+  <Module file="NexusForge.dll">
+    <!-- Keep Avalonia XAML binding targets — obfuscating these breaks data binding -->
+    <SkipNamespace name="Avalonia*" />
+
+    <!-- Keep view model public properties + commands for XAML data binding -->
+    <SkipType name="NexusForge.ViewModels.MainViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.BoardInfoViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.FlashViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.DriverViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.DmaTestViewModel" skipProperties="true" skipMethods="true" />
+    <SkipType name="NexusForge.ViewModels.BaseViewModel" />
+    <SkipType name="NexusForge.ViewModels.LogLevelToColorConverter" />
+
+    <!-- Keep model properties (used in bindings and serialization) -->
+    <SkipType name="NexusForge.Models.BoardInfo" skipProperties="true" />
+    <SkipType name="NexusForge.Models.FlashProgress" skipProperties="true" />
+    <SkipType name="NexusForge.Models.FlashResult" skipProperties="true" />
+    <SkipType name="NexusForge.Models.FirmwareFile" skipProperties="true" />
+    <SkipType name="NexusForge.Models.AppSettings" skipProperties="true" />
+    <SkipType name="NexusForge.Models.DriverInfo" skipProperties="true" />
+    <SkipType name="NexusForge.Models.ProcessResult" skipProperties="true" />
+
+    <!-- Keep Program entry point -->
+    <SkipType name="NexusForge.Program" />
+
+    <!-- Keep App class (Avalonia requires it by name) -->
+    <SkipType name="NexusForge.App" />
+
+    <!-- Keep View classes (Avalonia XAML references them by name) -->
+    <SkipType name="NexusForge.Views.*" />
+  </Module>
+</Obfuscator>
