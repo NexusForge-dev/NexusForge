@@ -41,10 +41,10 @@ NexusForge is a standalone Windows application for managing FPGA-based DMA board
 | FPGA | Detect | Flash | Common DMA Boards |
 |------|--------|-------|-------------------|
 | XC7A15T | Yes | Yes | — |
-| XC7A35T | Yes | Yes | LeetDMA, CaptainDMA M2, GBOX, Squirrel, ScreamerM2 |
+| XC7A35T | Yes | Yes | LeetDMA, CaptainDMA M2, CaptainDMA 4.1th, GBOX, Squirrel, ScreamerM2 |
 | XC7A50T | Yes | Yes | — |
 | XC7A75T | Yes | Yes | CaptainDMA 75T, Enigma X1 |
-| XC7A100T | Yes | Yes | CaptainDMA 100T, ZDMA |
+| XC7A100T | Yes | Yes | CaptainDMA 100T, CaptainDMA M2 100T, ZDMA |
 | XC7A200T | Yes | Yes | — |
 | XC7K325T | Yes | No | — |
 | XC7K355T | Yes | No | — |
