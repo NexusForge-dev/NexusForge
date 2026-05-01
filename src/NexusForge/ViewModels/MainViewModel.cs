@@ -12,13 +12,15 @@ public class MainViewModel : BaseViewModel
     private readonly FlashViewModel _flash;
     private readonly DriverViewModel _driver;
     private readonly DmaTestViewModel _dmaTest;
+    private readonly BarProbeViewModel _barProbe;
 
-    private string _statusBarText = "NexusForge v1.0  ·  DMA FPGA Management Tool";
+    private string _statusBarText = "NexusForge v1.1  ·  DMA FPGA Management Tool";
 
     public BoardInfoViewModel BoardInfo => _boardInfo;
     public FlashViewModel Flash => _flash;
     public DriverViewModel Driver => _driver;
     public DmaTestViewModel DmaTest => _dmaTest;
+    public BarProbeViewModel BarProbe => _barProbe;
 
     public ObservableCollection<LogEntry> LogEntries { get; } = new();
 
@@ -38,19 +40,21 @@ public class MainViewModel : BaseViewModel
         BoardInfoViewModel boardInfo,
         FlashViewModel flash,
         DriverViewModel driver,
-        DmaTestViewModel dmaTest)
+        DmaTestViewModel dmaTest,
+        BarProbeViewModel barProbe)
     {
         _logService = logService;
         _boardInfo = boardInfo;
         _flash = flash;
         _driver = driver;
         _dmaTest = dmaTest;
+        _barProbe = barProbe;
 
         ClearLogCommand = new RelayCommand(ClearLog);
         CopyLogCommand = new AsyncRelayCommand(CopyLogAsync);
 
         _logService.LogAdded += OnLogAdded;
-        _logService.Info("NexusForge v1.0 started");
+        _logService.Info("NexusForge v1.1 started");
     }
 
     private void OnLogAdded(object? sender, LogEntry entry)

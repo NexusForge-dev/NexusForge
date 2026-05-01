@@ -4,7 +4,7 @@
         xmlns:ctrl="using:NexusForge.Views.Controls"
         x:Class="NexusForge.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="NexusForge v1.0"
+        Title="NexusForge v1.1"
         Width="950" Height="960"
         MinWidth="950" MinHeight="960"
         MaxWidth="950" MaxHeight="960"
@@ -221,6 +221,57 @@
               </StackPanel>
             </Border>
           </StackPanel>
+      </TabItem>
+
+      <!-- ═══ Tab 4: BAR PROBE ═══ -->
+      <TabItem Header="  BAR PROBE  ">
+        <StackPanel>
+          <ctrl:BarProbePanel DataContext="{Binding BarProbe}" Margin="12,8,12,6" />
+
+          <!-- Info card -->
+          <Border Background="#161B22"
+                  BorderBrush="#21262D"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Margin="12,0,12,8"
+                  Padding="16,14">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Background="#A371F7" Width="3" CornerRadius="2" />
+                <TextBlock Text="ABOUT BAR PROBE"
+                           FontSize="11" FontWeight="SemiBold" Foreground="#E6EDF3" />
+              </StackPanel>
+              <StackPanel Spacing="6">
+                <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
+                  Reads the FPGA's own BAR memory by issuing a DMA read to its
+                  physical address (PCIe self-loopback through the chipset). On AMD
+                  platforms this generally works; on some Intel chipsets it may not,
+                  in which case the read returns zeros or fails.
+                </TextBlock>
+                <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
+                  Default address 0xDCC001F0 = the AHCI engine's debug counters
+                  (dbg_done_count / dbg_start_count / dbg_last_ci / engine flags).
+                  If your card's BAR is at a different physical address, find it via
+                  Device Manager / ASMedia 1062 / Resources, or via RW-Everything.
+                </TextBlock>
+                <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
+                  Polling: appends a timestamped hex dump to the log file every
+                  Period(ms). When the FPGA dies (target PC freezes / reboots), the
+                  poll loop detects consecutive read failures and stops cleanly.
+                  The log file on this radar PC is preserved.
+                </TextBlock>
+                <Border Background="#1C2333" CornerRadius="6" Padding="12,8" Margin="0,4,0,0">
+                  <TextBlock Foreground="#6E7681" FontSize="11" TextWrapping="Wrap">
+                    Workflow: set address + length, click Start Polling, then launch
+                    the game on the target PC. When the target freezes, polling stops
+                    automatically (FPGA went down). Log file holds everything captured
+                    up to the freeze moment.
+                  </TextBlock>
+                </Border>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
       </TabItem>
 
       <!-- ═══ Tab 3: DMA TESTING ═══ -->

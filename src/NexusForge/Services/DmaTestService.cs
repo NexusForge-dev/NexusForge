@@ -103,6 +103,14 @@ public class DmaTestService
 
     public DmaTestService(LogService log) => _log = log;
 
+    /// <summary>
+    /// Public entry point so other services (e.g. BarProbeService) can ensure
+    /// the embedded leechcore/vmm/FTDI DLLs are extracted and the PInvoke
+    /// resolver is registered before they call into VmmNative themselves.
+    /// Idempotent — safe to call repeatedly.
+    /// </summary>
+    public void EnsureLibraries() => EnsureDllsExtracted();
+
     private void EnsureDllsExtracted()
     {
         if (_extracted && _dmaDir != null && Directory.Exists(_dmaDir))

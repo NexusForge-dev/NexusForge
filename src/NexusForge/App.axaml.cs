@@ -97,12 +97,14 @@ public class App : Application
         services.AddSingleton<FtdiDriverService>();
         services.AddSingleton<DriverService>();
         services.AddSingleton<DmaTestService>();
+        services.AddSingleton<BarProbeService>();
         services.AddSingleton<AutoUpdateService>();
 
         services.AddSingleton<BoardInfoViewModel>();
         services.AddSingleton<FlashViewModel>();
         services.AddSingleton<DriverViewModel>();
         services.AddSingleton<DmaTestViewModel>();
+        services.AddSingleton<BarProbeViewModel>();
         services.AddSingleton<MainViewModel>();
 
         return services.BuildServiceProvider();
