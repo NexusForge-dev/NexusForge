@@ -18,16 +18,47 @@ public class App : Application
 
     public override void Initialize()
     {
-        AvaloniaXamlLoader.Load(this);
+        try
+        {
+            AvaloniaXamlLoader.Load(this);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException("App.Initialize/AvaloniaXamlLoader", ex);
+            throw;
+        }
     }
 
-    public override async void OnFrameworkInitializationCompleted()
+    public override void OnFrameworkInitializationCompleted()
+    {
+        // NB: this method is intentionally NOT async void anymore. Async-void on the
+        // Avalonia init lifecycle silently terminates the process on any exception
+        // (no managed handler can catch it before the dispatcher dies). Run startup
+        // synchronously here, then fire-and-forget the post-init background tasks.
+        try
+        {
+            InitializeFrameworkInternal();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.LogException("App.OnFrameworkInitializationCompleted", ex);
+            throw;
+        }
+        finally
+        {
+            base.OnFrameworkInitializationCompleted();
+        }
+    }
+
+    private void InitializeFrameworkInternal()
     {
         AntiTamper.Verify();
 
         if (!IntegrityGuard.IsValid())
         {
+            CrashLogger.WriteLine("IntegrityGuard reported invalid — exiting.");
             Environment.Exit(IntegrityGuard.Probe());
+            return;
         }
 
         _services = ConfigureServices();
@@ -39,29 +70,37 @@ public class App : Application
             var mainViewModel = _services.GetRequiredService<MainViewModel>();
             desktop.MainWindow = new MainWindow(mainViewModel);
 
+            // Auto-update runs in the background after a short settle period. Wrapped
+            // tightly so a network/parse blowup never bubbles to the dispatcher.
             _ = Task.Run(async () =>
             {
                 try
                 {
                     await Task.Delay(2000);
-
                     var updater = _services.GetRequiredService<AutoUpdateService>();
                     bool shouldRestart = await updater.CheckAndApplyUpdateAsync();
                     if (shouldRestart)
                     {
                         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         {
+                            CrashLogger.WriteLine("AutoUpdate: applying update, exiting cleanly.");
+                            CrashLogger.MarkCleanExit();
                             Environment.Exit(0);
                         });
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    CrashLogger.LogException("AutoUpdate background task", ex);
+                }
             });
         }
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => CleanupTempFolders();
-
-        base.OnFrameworkInitializationCompleted();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            CrashLogger.MarkCleanExit();
+            CleanupTempFolders();
+        };
     }
 
     private static void CleanupTempFolders()

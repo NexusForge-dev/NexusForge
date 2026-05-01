@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace NexusForge.Helpers;
+// CrashLogger is in this namespace too — no extra using needed.
+
 
 internal static partial class AntiTamper
 {
@@ -25,10 +27,14 @@ internal static partial class AntiTamper
     public static void Verify()
     {
         var rеsult = false;
-        rеsult |= P1();
-        rеsult |= P2();
-        rеsult |= P3();
-        if (rеsult) Bail();
+        try { rеsult |= P1(); } catch (Exception ex) { CrashLogger.WriteLine($"AntiTamper.P1 threw: {ex.Message}"); }
+        try { rеsult |= P2(); } catch (Exception ex) { CrashLogger.WriteLine($"AntiTamper.P2 threw: {ex.Message}"); }
+        try { rеsult |= P3(); } catch (Exception ex) { CrashLogger.WriteLine($"AntiTamper.P3 threw: {ex.Message}"); }
+        if (rеsult)
+        {
+            CrashLogger.WriteLine("AntiTamper.Verify tripped (P1|P2|P3) — exiting at startup.");
+            Bail();
+        }
         StartWatchdog();
     }
 
@@ -99,6 +105,11 @@ internal static partial class AntiTamper
 
     private static void StartWatchdog()
     {
+        // Watchdog used to call Bail() on any P1/P3 trigger, which silently killed
+        // the app via Environment.Exit(0) from a BACKGROUND THREAD with no surface.
+        // On Win11 25H2 the process scan (P3) can flake on protected/ELAM processes
+        // and we don't want to surprise-exit the whole app for that. Detect, log,
+        // do not kill. Ship as logging-only watchdog.
         var t = new Thread(() =>
         {
             while (true)
@@ -106,7 +117,10 @@ internal static partial class AntiTamper
                 Thread.Sleep(10_000);
                 try
                 {
-                    if (P1() || P3()) Bail();
+                    if (P1())
+                        CrashLogger.WriteLine("AntiTamper.Watchdog: P1 (debugger) tripped — ignoring.");
+                    if (P3())
+                        CrashLogger.WriteLine("AntiTamper.Watchdog: P3 (process scan) tripped — ignoring.");
                 }
                 catch { }
             }

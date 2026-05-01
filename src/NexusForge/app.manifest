@@ -20,7 +20,10 @@
       <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">permonitorv2,permonitor</dpiAwareness>
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
-      <heapType xmlns="http://schemas.microsoft.com/SMI/2020/WindowsSettings">SegmentHeap</heapType>
+      <!-- v1.1.4 Win11 25H2 fix: SegmentHeap opt-in removed. Some Win11 25H2 builds
+           interact poorly with SegmentHeap on processes that mix .NET native and
+           apphost extraction, causing silent crashes on relaunch. Default NT heap
+           is fine for an Avalonia tool; perf delta is irrelevant here. -->
     </windowsSettings>
   </application>
 

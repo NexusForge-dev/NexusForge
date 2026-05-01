@@ -25,6 +25,9 @@ public partial class MainWindow : Window
 
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
+        // async void on a window event is unavoidable here (Avalonia API shape) but
+        // EVERY await must be wrapped — an unhandled exception in this method goes
+        // to the dispatcher and silently terminates the process, leaving no log.
         if (_cleanupDone)
         {
             base.OnClosing(e);
@@ -33,33 +36,54 @@ public partial class MainWindow : Window
 
         e.Cancel = true;
 
-        Hide();
-
-        var cleanupWindow = new ShutdownWindow();
-        cleanupWindow.Show();
-
-        await Task.Run(() =>
+        try
         {
-            try
+            Hide();
+
+            var cleanupWindow = new ShutdownWindow();
+            cleanupWindow.Show();
+
+            await Task.Run(() =>
             {
-                var app = (App)Avalonia.Application.Current!;
-                var services = app.Services;
-                if (services != null)
+                try
                 {
-                    try { services.GetService<NativeJtagService>()?.Dispose(); } catch { }
-                    try { services.GetService<DmaTestService>()?.Cleanup(); } catch { }
+                    var app = (App)Avalonia.Application.Current!;
+                    var services = app.Services;
+                    if (services != null)
+                    {
+                        try { services.GetService<NativeJtagService>()?.Dispose(); } catch { }
+                        try { services.GetService<DmaTestService>()?.Cleanup(); } catch { }
+                    }
                 }
-            }
-            catch { }
+                catch (Exception ex)
+                {
+                    Helpers.CrashLogger.WriteLine($"OnClosing service-disposal error: {ex.Message}");
+                }
 
-            SpawnCleanupProcess();
-        });
+                try { SpawnCleanupProcess(); }
+                catch (Exception ex)
+                {
+                    Helpers.CrashLogger.WriteLine($"OnClosing SpawnCleanupProcess error: {ex.Message}");
+                }
+            });
 
-        await Task.Delay(2000);
+            await Task.Delay(2000);
 
-        cleanupWindow.Close();
-        _cleanupDone = true;
-        Dispatcher.UIThread.Post(() => Close());
+            cleanupWindow.Close();
+            _cleanupDone = true;
+            // MarkCleanExit so Program.cs knows the next launch doesn't need to
+            // wipe the .NET single-file extraction cache.
+            Helpers.CrashLogger.MarkCleanExit();
+            Dispatcher.UIThread.Post(() => Close());
+        }
+        catch (Exception ex)
+        {
+            Helpers.CrashLogger.LogException("MainWindow.OnClosing", ex);
+            // We must complete shutdown even on error — re-allow the close so the
+            // user isn't left with a hung window.
+            _cleanupDone = true;
+            Dispatcher.UIThread.Post(() => Close());
+        }
     }
 
     private static void SpawnCleanupProcess()
