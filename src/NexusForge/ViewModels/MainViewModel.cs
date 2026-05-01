@@ -14,7 +14,7 @@ public class MainViewModel : BaseViewModel
     private readonly DmaTestViewModel _dmaTest;
     private readonly BarProbeViewModel _barProbe;
 
-    private string _statusBarText = "NexusForge v1.1.2  ·  DMA FPGA Management Tool";
+    private string _statusBarText = "NexusForge v1.1.3  ·  DMA FPGA Management Tool";
 
     public BoardInfoViewModel BoardInfo => _boardInfo;
     public FlashViewModel Flash => _flash;
@@ -54,7 +54,7 @@ public class MainViewModel : BaseViewModel
         CopyLogCommand = new AsyncRelayCommand(CopyLogAsync);
 
         _logService.LogAdded += OnLogAdded;
-        _logService.Info("NexusForge v1.1.2 started");
+        _logService.Info("NexusForge v1.1.3 started");
     }
 
     private void OnLogAdded(object? sender, LogEntry entry)

@@ -12,15 +12,15 @@
     <AssemblyName>NexusForge</AssemblyName>
     <ApplicationIcon>nexusforge.ico</ApplicationIcon>
     <RootNamespace>NexusForge</RootNamespace>
-    <Version>1.1.2</Version>
+    <Version>1.1.3</Version>
     <Product>NexusForge</Product>
     <Company>NexusForge</Company>
     <Authors>NexusForge</Authors>
     <Copyright>Copyright © 2026 NexusForge. All rights reserved.</Copyright>
     <Description>FPGA DMA board management tool.</Description>
-    <FileVersion>1.1.2.0</FileVersion>
-    <AssemblyVersion>1.1.2.0</AssemblyVersion>
-    <InformationalVersion>1.1.2</InformationalVersion>
+    <FileVersion>1.1.3.0</FileVersion>
+    <AssemblyVersion>1.1.3.0</AssemblyVersion>
+    <InformationalVersion>1.1.3</InformationalVersion>
     <NeutralLanguage>en</NeutralLanguage>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
@@ -41,6 +41,15 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="Obfuscar" Version="2.2.38" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- v1.1.3: System.Management uses heavy reflection (WMI type init).
+       PublishTrimmed=partial strips internal types it depends on, causing
+       'type initializer for ManagementPath threw' at runtime. Adding it as a
+       trimmer root keeps the full assembly. Adds ~1 MB to the binary but
+       restores the WMI-based PCIe device enumeration. -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="System.Management" />
   </ItemGroup>
 
   <ItemGroup>
