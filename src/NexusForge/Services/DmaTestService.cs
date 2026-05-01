@@ -33,7 +33,21 @@ internal static class VmmNative
     [DllImport(LcDll, CallingConvention = CallingConvention.Cdecl)]
     public static extern bool LcRead(IntPtr hLC, ulong pa, uint cb, IntPtr pb);
 
+    // LcCommand: send a special command to LeechCore (e.g., read PCIe config space).
+    // ppbDataOut buffer is allocated by LeechCore and must be freed via LcMemFree.
+    [DllImport(LcDll, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool LcCommand(IntPtr hLC, ulong fOption, uint cbDataIn, IntPtr pbDataIn,
+                                        out IntPtr ppbDataOut, out uint pcbDataOut);
+
+    [DllImport(LcDll, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void LcMemFree(IntPtr pvMem);
+
     public const ulong OPT_CORE_LEECHCORE_HANDLE = 0x4000001000000000;
+
+    // LeechCore command IDs (from leechcore.h).
+    // FPGA_PCIECFGSPACE_RD reads the FPGA endpoint's own 4 KB PCIe config space
+    // via Type 0 config TLPs — works regardless of P2P routing or memory map.
+    public const ulong LC_CMD_FPGA_PCIECFGSPACE_RD = 0x0000010300000000;
 }
 
 public class DmaTestResult

@@ -12,15 +12,15 @@
     <AssemblyName>NexusForge</AssemblyName>
     <ApplicationIcon>nexusforge.ico</ApplicationIcon>
     <RootNamespace>NexusForge</RootNamespace>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <Product>NexusForge</Product>
     <Company>NexusForge</Company>
     <Authors>NexusForge</Authors>
     <Copyright>Copyright © 2026 NexusForge. All rights reserved.</Copyright>
     <Description>FPGA DMA board management tool.</Description>
-    <FileVersion>1.1.1.0</FileVersion>
-    <AssemblyVersion>1.1.1.0</AssemblyVersion>
-    <InformationalVersion>1.1.1</InformationalVersion>
+    <FileVersion>1.1.2.0</FileVersion>
+    <AssemblyVersion>1.1.2.0</AssemblyVersion>
+    <InformationalVersion>1.1.2</InformationalVersion>
     <NeutralLanguage>en</NeutralLanguage>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
@@ -39,6 +39,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="Obfuscar" Version="2.2.38" PrivateAssets="all" />
   </ItemGroup>
 

@@ -33,6 +33,7 @@
                        Foreground="#6E7681" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
             <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
                      Text="{Binding AddressHex}"
+                     Watermark="hex address (e.g. 100000 = 1MB mark in RAM)"
                      Background="#0D1117" Foreground="#C9D1D9" BorderBrush="#30363D"
                      FontFamily="Consolas,Courier New,monospace" FontSize="12"
                      Padding="8,5" CornerRadius="4" />
@@ -60,8 +61,8 @@
           </Grid>
         </Border>
 
-        <!-- Action buttons -->
-        <Border Padding="16,0,16,12">
+        <!-- Action buttons (custom address) -->
+        <Border Padding="16,0,16,8">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Classes="primary"
                     Content="Read Once"
@@ -80,6 +81,52 @@
           </StackPanel>
         </Border>
 
+        <!-- Helper buttons (FPGA-specific + diagnostics) -->
+        <Border Padding="16,0,16,12">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="ghost"
+                    Content="Test FPGA Link"
+                    Command="{Binding TestConnectionCommand}"
+                    ToolTip.Tip="Reads system RAM at 0x100000 to verify FTDI/leechcore/FPGA chain works" />
+            <Button Classes="ghost"
+                    Content="Read DMA Config Space"
+                    Command="{Binding ReadFpgaCfgCommand}"
+                    ToolTip.Tip="Reads the FPGA's PCIe config space via Type 0 cfg TLPs (works regardless of P2P)" />
+            <Button Classes="ghost"
+                    Content="List PCIe Devices"
+                    Command="{Binding EnumerateDevicesCommand}"
+                    ToolTip.Tip="Lists all PCIe devices and their BAR addresses (via Windows WMI)" />
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </Border>
+
+    <!-- ═══ PCIe DEVICE LIST ═══ -->
+    <Border Background="#161B22" BorderBrush="#21262D" BorderThickness="1" CornerRadius="8"
+            IsVisible="{Binding DeviceList.Count}">
+      <StackPanel>
+        <Border BorderBrush="#21262D" BorderThickness="0,0,0,1" Padding="16,10">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Border Background="#58A6FF" Width="3" CornerRadius="2" />
+            <TextBlock Text="PCIe DEVICES + BAR ADDRESSES" FontSize="11" FontWeight="SemiBold" Foreground="#E6EDF3" />
+          </StackPanel>
+        </Border>
+        <Border Padding="16,8" MaxHeight="200">
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding DeviceList}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding}"
+                             FontFamily="Consolas,Courier New,monospace"
+                             FontSize="11"
+                             Foreground="#C9D1D9"
+                             Margin="0,1" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
       </StackPanel>
     </Border>
 

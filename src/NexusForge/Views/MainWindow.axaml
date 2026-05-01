@@ -4,7 +4,7 @@
         xmlns:ctrl="using:NexusForge.Views.Controls"
         x:Class="NexusForge.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="NexusForge v1.1"
+        Title="NexusForge v1.1.2"
         Width="950" Height="960"
         MinWidth="950" MinHeight="960"
         MaxWidth="950" MaxHeight="960"
@@ -243,31 +243,33 @@
               </StackPanel>
               <StackPanel Spacing="6">
                 <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
-                  Reads the FPGA's own BAR memory by issuing a DMA read to its
-                  physical address (PCIe self-loopback through the chipset). On AMD
-                  platforms this generally works; on some Intel chipsets it may not,
-                  in which case the read returns zeros or fails.
+                  Reads physical memory through the FPGA's DMA engine. Useful for
+                  inspecting host RAM, other PCIe devices' BAR memory (NIC, GPU,
+                  storage controllers), and anything the OS exposes in the physical
+                  address space.
                 </TextBlock>
                 <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
-                  Default address 0xDCC001F0 = the AHCI engine's debug counters
-                  (dbg_done_count / dbg_start_count / dbg_last_ci / engine flags).
-                  If your card's BAR is at a different physical address, find it via
-                  Device Manager / ASMedia 1062 / Resources, or via RW-Everything.
+                  <Run FontWeight="SemiBold" Foreground="#E3B341">Limitation:</Run>
+                  The DMA card cannot read its OWN BAR memory via this path on
+                  most chipsets (PCIe self-loopback / peer-to-peer routing is
+                  usually blocked). Use "Read DMA Config Space" instead — it uses
+                  Type 0 config TLPs which the root complex always routes correctly.
+                </TextBlock>
+                <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
+                  Helpers:
+                  <LineBreak/>
+                  • <Run FontWeight="SemiBold">Test FPGA Link</Run> — reads system RAM at 0x100000, confirms FTDI + leechcore + FPGA chain works
+                  <LineBreak/>
+                  • <Run FontWeight="SemiBold">Read DMA Config Space</Run> — reads the FPGA's own PCIe config space (vendor/device IDs, BARs, capabilities, DSN)
+                  <LineBreak/>
+                  • <Run FontWeight="SemiBold">List PCIe Devices</Run> — enumerates host PCIe devices + their BAR address ranges so you can pick a target without hunting in Device Manager
                 </TextBlock>
                 <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
                   Polling: appends a timestamped hex dump to the log file every
-                  Period(ms). When the FPGA dies (target PC freezes / reboots), the
-                  poll loop detects consecutive read failures and stops cleanly.
-                  The log file on this radar PC is preserved.
+                  Period(ms). When the FPGA loses connection (target PC freezes /
+                  reboots / cable unplugged), the poll loop detects consecutive
+                  failures and stops cleanly. The log file is preserved on this PC.
                 </TextBlock>
-                <Border Background="#1C2333" CornerRadius="6" Padding="12,8" Margin="0,4,0,0">
-                  <TextBlock Foreground="#6E7681" FontSize="11" TextWrapping="Wrap">
-                    Workflow: set address + length, click Start Polling, then launch
-                    the game on the target PC. When the target freezes, polling stops
-                    automatically (FPGA went down). Log file holds everything captured
-                    up to the freeze moment.
-                  </TextBlock>
-                </Border>
               </StackPanel>
             </StackPanel>
           </Border>

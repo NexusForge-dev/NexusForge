@@ -98,6 +98,7 @@ public class App : Application
         services.AddSingleton<DriverService>();
         services.AddSingleton<DmaTestService>();
         services.AddSingleton<BarProbeService>();
+        services.AddSingleton<PciEnumService>();
         services.AddSingleton<AutoUpdateService>();
 
         services.AddSingleton<BoardInfoViewModel>();

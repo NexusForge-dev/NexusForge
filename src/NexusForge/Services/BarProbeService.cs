@@ -32,6 +32,54 @@ public sealed class BarProbeService
     }
 
     /// <summary>
+    /// Quick connectivity check — reads 16 bytes at physical address 0x100000
+    /// (the 1 MB mark, almost always real RAM on any x64 system). If this
+    /// succeeds, the FTDI link + LeechCore + FPGA DMA path are all working.
+    /// Independent of any specific BAR layout the user might enter.
+    /// </summary>
+    public byte[] TestConnection()
+    {
+        return ReadOnce(0x100000, 16);
+    }
+
+    /// <summary>
+    /// Read the FPGA's own PCIe config space (4 KB extended) via PCILeech's
+    /// command channel. Uses Type 0 config TLPs which the root complex always
+    /// routes correctly, so this works even when memory-space self-loopback
+    /// is blocked. Useful for inspecting the FPGA's identity, BAR table,
+    /// capability list, DSN, etc.
+    /// </summary>
+    public byte[] ReadFpgaConfigSpace()
+    {
+        IntPtr hVMM = ConnectVmm();
+        try
+        {
+            IntPtr hLC = GetLcHandle(hVMM);
+            if (!VmmNative.LcCommand(hLC, VmmNative.LC_CMD_FPGA_PCIECFGSPACE_RD, 0, IntPtr.Zero,
+                                     out IntPtr pData, out uint cbData))
+            {
+                throw new IOException("LcCommand(FPGA_PCIECFGSPACE_RD) returned false");
+            }
+            if (pData == IntPtr.Zero || cbData == 0)
+                throw new IOException("LcCommand returned no data");
+            try
+            {
+                var buf = new byte[cbData];
+                Marshal.Copy(pData, buf, 0, (int)cbData);
+                return buf;
+            }
+            finally
+            {
+                VmmNative.LcMemFree(pData);
+            }
+        }
+        finally
+        {
+            VmmNative.VMMDLL_Close(hVMM);
+        }
+    }
+
+    /// <summary>
     /// One-shot read of <paramref name="length"/> bytes at <paramref name="physAddr"/>.
     /// Returns the raw bytes, or throws on init/read failure.
     /// </summary>

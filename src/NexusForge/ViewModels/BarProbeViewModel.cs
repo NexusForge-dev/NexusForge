@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using NexusForge.Services;
@@ -8,11 +10,12 @@ namespace NexusForge.ViewModels;
 public class BarProbeViewModel : BaseViewModel
 {
     private readonly BarProbeService _probe;
+    private readonly PciEnumService _pciEnum;
     private readonly LogService _log;
 
     // Inputs
-    private string _addressHex = "DCC001F0";   // default = ASMedia 1062 BAR + 0x1F0 (engine dbg counters)
-    private string _length     = "16";          // bytes
+    private string _addressHex = "";            // user must enter a real address
+    private string _length     = "256";         // bytes
     private string _periodMs   = "100";         // poll interval
     private string _logFile    = "";            // poll log path (auto-filled if empty)
 
@@ -103,18 +106,113 @@ public class BarProbeViewModel : BaseViewModel
         set => SetProperty(ref _pollSamples, value);
     }
 
-    public ICommand ReadOnceCommand   { get; }
-    public ICommand StartPollCommand  { get; }
-    public ICommand StopPollCommand   { get; }
+    public ICommand ReadOnceCommand        { get; }
+    public ICommand StartPollCommand       { get; }
+    public ICommand StopPollCommand        { get; }
+    public ICommand TestConnectionCommand  { get; }
+    public ICommand ReadFpgaCfgCommand     { get; }
+    public ICommand EnumerateDevicesCommand { get; }
 
-    public BarProbeViewModel(BarProbeService probe, LogService log)
+    /// <summary>One line per device found, formatted for the UI list.</summary>
+    public ObservableCollection<string> DeviceList { get; } = new();
+
+    public BarProbeViewModel(BarProbeService probe, PciEnumService pciEnum, LogService log)
     {
-        _probe = probe;
-        _log   = log;
+        _probe   = probe;
+        _pciEnum = pciEnum;
+        _log     = log;
 
-        ReadOnceCommand  = new AsyncRelayCommand(ReadOnceAsync,  () => !IsProbing && !IsPolling);
-        StartPollCommand = new AsyncRelayCommand(StartPollAsync, () => !IsProbing && !IsPolling);
-        StopPollCommand  = new RelayCommand(StopPoll,            () => IsPolling);
+        ReadOnceCommand         = new AsyncRelayCommand(ReadOnceAsync,         () => !IsProbing && !IsPolling);
+        StartPollCommand        = new AsyncRelayCommand(StartPollAsync,        () => !IsProbing && !IsPolling);
+        StopPollCommand         = new RelayCommand(StopPoll,                   () => IsPolling);
+        TestConnectionCommand   = new AsyncRelayCommand(TestConnectionAsync,   () => !IsProbing && !IsPolling);
+        ReadFpgaCfgCommand      = new AsyncRelayCommand(ReadFpgaCfgAsync,      () => !IsProbing && !IsPolling);
+        EnumerateDevicesCommand = new AsyncRelayCommand(EnumerateDevicesAsync, () => !IsProbing && !IsPolling);
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        IsProbing = true;
+        SetStatus("Testing FPGA link (read RAM at 0x100000)...", "#58A6FF");
+        try
+        {
+            var data = await Task.Run(() => _probe.TestConnection());
+            LastReadHex = ToHex(data);
+            LastReadParsed = ParseAsDwords(data);
+            SetStatus("Link OK: read 16 bytes from system RAM at 0x100000", "#3FB950");
+            _log.Info("BarProbe: link test passed");
+        }
+        catch (Exception ex)
+        {
+            LastReadHex = "(test failed)";
+            LastReadParsed = ex.Message;
+            SetStatus("Link test failed - check FTDI driver / FPGA / firmware", "#F85149");
+            _log.Error($"BarProbe link test failed: {ex.Message}");
+        }
+        finally
+        {
+            IsProbing = false;
+        }
+    }
+
+    private async Task ReadFpgaCfgAsync()
+    {
+        IsProbing = true;
+        SetStatus("Reading FPGA PCIe config space...", "#58A6FF");
+        try
+        {
+            var data = await Task.Run(() => _probe.ReadFpgaConfigSpace());
+            LastReadHex = ToHex(data);
+            LastReadParsed = ParseConfigSpace(data);
+            SetStatus($"Read {data.Length} B of FPGA config space (Type 0 cfg TLPs, no P2P needed)", "#3FB950");
+            _log.Info($"BarProbe: read {data.Length} B FPGA config space");
+        }
+        catch (Exception ex)
+        {
+            LastReadHex = "(config read failed)";
+            LastReadParsed = ex.Message;
+            SetStatus("FPGA config read failed", "#F85149");
+            _log.Error($"BarProbe FPGA config read failed: {ex.Message}");
+        }
+        finally
+        {
+            IsProbing = false;
+        }
+    }
+
+    private async Task EnumerateDevicesAsync()
+    {
+        IsProbing = true;
+        SetStatus("Enumerating PCIe devices via WMI...", "#58A6FF");
+        try
+        {
+            var list = await Task.Run(() => _pciEnum.Enumerate());
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => DeviceList.Clear());
+            int withMem = 0;
+            foreach (var d in list)
+            {
+                foreach (var b in d.Bars)
+                {
+                    var sizeStr = b.Size >= 1024 * 1024
+                        ? $"{b.Size / (1024 * 1024)} MB"
+                        : (b.Size >= 1024 ? $"{b.Size / 1024} KB" : $"{b.Size} B");
+                    var line = $"VID:{d.Vendor} DID:{d.Device}  0x{b.Start:X8}..0x{b.End:X8} ({sizeStr})  {d.Name}";
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => DeviceList.Add(line));
+                    withMem++;
+                }
+            }
+            SetStatus($"Found {list.Count} PCIe devices, {withMem} memory BARs (click an entry to copy address)", "#3FB950");
+            _log.Info($"BarProbe: enumerated {list.Count} PCIe devices, {withMem} BARs");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Enumeration failed", "#F85149");
+            _log.Error($"BarProbe enumeration failed: {ex.Message}");
+        }
+        finally
+        {
+            IsProbing = false;
+        }
     }
 
     private async Task ReadOnceAsync()
@@ -269,6 +367,44 @@ public class BarProbeViewModel : BaseViewModel
             if ((i + 1) % 16 == 0 && i + 1 < data.Length) sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    private static string ParseConfigSpace(byte[] data)
+    {
+        if (data.Length < 64) return "(config space too short)";
+        var sb = new StringBuilder();
+        ushort vid = (ushort)(data[0]  | (data[1]  << 8));
+        ushort did = (ushort)(data[2]  | (data[3]  << 8));
+        ushort cmd = (ushort)(data[4]  | (data[5]  << 8));
+        ushort sts = (ushort)(data[6]  | (data[7]  << 8));
+        byte rev   = data[8];
+        uint  cls  = (uint)(data[9] | (data[10] << 8) | (data[11] << 16));
+        sb.AppendLine($"Vendor    : 0x{vid:X4}");
+        sb.AppendLine($"Device    : 0x{did:X4}");
+        sb.AppendLine($"Class/PI  : 0x{cls:X6}  (rev 0x{rev:X2})");
+        sb.AppendLine($"Command   : 0x{cmd:X4}");
+        sb.AppendLine($"Status    : 0x{sts:X4}");
+        sb.AppendLine();
+        sb.AppendLine("BARs:");
+        for (int i = 0; i < 6; i++)
+        {
+            int off = 0x10 + i * 4;
+            if (off + 4 > data.Length) break;
+            uint bar = BitConverter.ToUInt32(data, off);
+            string kind = (bar & 1) == 1 ? "I/O " : "Mem";
+            string masked = $"0x{bar & 0xFFFFFFF0:X8}";
+            sb.AppendLine($"  BAR{i} = 0x{bar:X8}  ({kind} -> {masked})");
+        }
+        if (data.Length >= 0x40)
+        {
+            ushort subVid = (ushort)(data[0x2C] | (data[0x2D] << 8));
+            ushort subDid = (ushort)(data[0x2E] | (data[0x2F] << 8));
+            byte capPtr = data[0x34];
+            sb.AppendLine();
+            sb.AppendLine($"Sub VID/DID: 0x{subVid:X4}:0x{subDid:X4}");
+            sb.AppendLine($"CapPtr     : 0x{capPtr:X2}");
+        }
+        return sb.ToString().TrimEnd();
     }
 
     private static string ParseAsDwords(byte[] data)
