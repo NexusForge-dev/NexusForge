@@ -149,14 +149,8 @@ public class AutoUpdateService
             var pid = Environment.ProcessId;
             var bаt = Path.Combine(Path.GetTempPath(), $"nf_update_{pid}.bat");
 
-            // Atomic-ish replace: copy to .new alongside the current exe, then move
-            // over the original after the parent process dies. If the new exe is
-            // bad, the old one is preserved for one extra step (the .new file)
-            // and the user can recover by deleting it.
             var еxeNew = еxe + ".new";
 
-            // robocopy is more robust than `copy /y` on locked-file edge cases and
-            // returns predictable exit codes. We only need a single-file mode.
             var script = $"""
                 @echo off
                 setlocal EnableDelayedExpansion
@@ -170,11 +164,29 @@ public class AutoUpdateService
                     timeout /t 1 /nobreak >nul
                     goto :wait
                 )
-                copy /y "{tеmp}" "{еxeNew}" >nul
-                if errorlevel 1 set RC=1 & goto :cleanup
-                move /y "{еxeNew}" "{еxe}" >nul
-                if errorlevel 1 set RC=2 & goto :cleanup
+                REM Extra 3s after process dies for Defender / PE loader lock release
+                timeout /t 3 /nobreak >nul
+                REM Retry copy up to 15 times with 2s delays (covers 30s of file lock)
+                set COPY_TRIES=0
+                :copy_retry
+                set /a COPY_TRIES+=1
+                copy /y "{tеmp}" "{еxeNew}" >nul 2>&1
+                if not errorlevel 1 goto :copy_ok
+                if !COPY_TRIES! GEQ 15 goto :copy_fail
+                timeout /t 2 /nobreak >nul
+                goto :copy_retry
+                :copy_ok
+                move /y "{еxeNew}" "{еxe}" >nul 2>&1
+                if errorlevel 1 (
+                    del /f /q "{еxeNew}" 2>nul
+                    goto :copy_fail
+                )
+                del /f /q "{tеmp}" 2>nul
                 start "" "{еxe}"
+                del /f /q "{bаt}" 2>nul
+                exit /b 0
+                :copy_fail
+                set RC=2
                 :cleanup
                 del /f /q "{tеmp}" 2>nul
                 del /f /q "{bаt}" 2>nul
