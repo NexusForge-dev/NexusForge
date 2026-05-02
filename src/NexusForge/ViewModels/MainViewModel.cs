@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Input;
+using NexusForge.Models;
 using NexusForge.Services;
 
 namespace NexusForge.ViewModels;
@@ -8,13 +9,14 @@ namespace NexusForge.ViewModels;
 public class MainViewModel : BaseViewModel
 {
     private readonly LogService _logService;
+    private readonly AppSettings _settings;
     private readonly BoardInfoViewModel _boardInfo;
     private readonly FlashViewModel _flash;
     private readonly DriverViewModel _driver;
     private readonly DmaTestViewModel _dmaTest;
     private readonly BarProbeViewModel _barProbe;
 
-    private string _statusBarText = "NexusForge v1.1.3  ·  DMA FPGA Management Tool";
+    private string _statusBarText = "";
 
     public BoardInfoViewModel BoardInfo => _boardInfo;
     public FlashViewModel Flash => _flash;
@@ -37,6 +39,7 @@ public class MainViewModel : BaseViewModel
 
     public MainViewModel(
         LogService logService,
+        AppSettings settings,
         BoardInfoViewModel boardInfo,
         FlashViewModel flash,
         DriverViewModel driver,
@@ -44,17 +47,20 @@ public class MainViewModel : BaseViewModel
         BarProbeViewModel barProbe)
     {
         _logService = logService;
+        _settings = settings;
         _boardInfo = boardInfo;
         _flash = flash;
         _driver = driver;
         _dmaTest = dmaTest;
         _barProbe = barProbe;
 
+        _statusBarText = $"NexusForge v{_settings.Version}  ·  DMA FPGA Management Tool";
+
         ClearLogCommand = new RelayCommand(ClearLog);
         CopyLogCommand = new AsyncRelayCommand(CopyLogAsync);
 
         _logService.LogAdded += OnLogAdded;
-        _logService.Info("NexusForge v1.1.3 started");
+        _logService.Info($"NexusForge v{_settings.Version} started");
     }
 
     private void OnLogAdded(object? sender, LogEntry entry)

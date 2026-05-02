@@ -69,7 +69,7 @@ public class AutoUpdateService
                 foreach (var а in аssets.EnumerateArray())
                 {
                     var nm = а.GetProperty("name").GetString() ?? "";
-                    if (nm.Equals("NexusForge.exe", StringComparison.OrdinalIgnoreCase))
+                    if (nm.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                     {
                         url = а.GetProperty("browser_download_url").GetString();
                         if (а.TryGetProperty("size", out var szProp))
