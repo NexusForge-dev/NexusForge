@@ -68,7 +68,17 @@ public class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainViewModel = _services.GetRequiredService<MainViewModel>();
-            desktop.MainWindow = new MainWindow(mainViewModel);
+            var mainWindow = new MainWindow(mainViewModel);
+
+            // Show splash, then reveal main window when splash finishes.
+            var splash = new SplashWindow();
+            desktop.MainWindow = splash;
+
+            splash.Closed += (_, _) =>
+            {
+                desktop.MainWindow = mainWindow;
+                mainWindow.Show();
+            };
 
             // Auto-update runs in the background after a short settle period. Wrapped
             // tightly so a network/parse blowup never bubbles to the dispatcher.
@@ -76,7 +86,7 @@ public class App : Application
             {
                 try
                 {
-                    await Task.Delay(2000);
+                    await Task.Delay(4000);
                     var updater = _services.GetRequiredService<AutoUpdateService>();
                     bool shouldRestart = await updater.CheckAndApplyUpdateAsync();
                     if (shouldRestart)

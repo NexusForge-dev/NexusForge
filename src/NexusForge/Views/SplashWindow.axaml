@@ -1,0 +1,114 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NexusForge.Views.SplashWindow"
+        Title="NexusForge"
+        Width="460" Height="340"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="None"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False">
+
+  <Border CornerRadius="16"
+          ClipToBounds="True">
+    <Border.Background>
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#0D1117" Offset="0"/>
+        <GradientStop Color="#111922" Offset="0.5"/>
+        <GradientStop Color="#0A1628" Offset="1"/>
+      </LinearGradientBrush>
+    </Border.Background>
+
+    <Border BorderBrush="#1E2A3A" BorderThickness="1" CornerRadius="16">
+      <Grid RowDefinitions="*,Auto,Auto">
+
+        <!-- Main content -->
+        <StackPanel Grid.Row="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="16"
+                    Margin="0,20,0,0">
+
+          <!-- Animated logo -->
+          <Border HorizontalAlignment="Center"
+                  Width="72" Height="72"
+                  CornerRadius="18"
+                  Name="LogoBorder">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#00D4AA" Offset="0"/>
+                <GradientStop Color="#00A88A" Offset="1"/>
+              </LinearGradientBrush>
+            </Border.Background>
+            <Border.BoxShadow>0 4 24 0 #4000D4AA</Border.BoxShadow>
+            <TextBlock Text="N"
+                       Foreground="#0A0D14"
+                       FontSize="36"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+          </Border>
+
+          <!-- Title -->
+          <StackPanel HorizontalAlignment="Center" Spacing="4">
+            <TextBlock Text="NEXUSFORGE"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       Foreground="#E6EDF3"
+                       HorizontalAlignment="Center"
+                       LetterSpacing="3" />
+            <TextBlock Text="DMA FPGA Management Tool"
+                       FontSize="12"
+                       Foreground="#6E7681"
+                       HorizontalAlignment="Center" />
+          </StackPanel>
+
+        </StackPanel>
+
+        <!-- Progress section -->
+        <StackPanel Grid.Row="1"
+                    Margin="48,0,48,0"
+                    Spacing="10">
+
+          <!-- Progress bar track -->
+          <Border Background="#161B22"
+                  CornerRadius="3"
+                  Height="4"
+                  ClipToBounds="True">
+            <Border Name="ProgressFill"
+                    Background="#00D4AA"
+                    CornerRadius="3"
+                    Height="4"
+                    HorizontalAlignment="Left"
+                    Width="0">
+              <Border.BoxShadow>0 0 8 0 #8000D4AA</Border.BoxShadow>
+            </Border>
+          </Border>
+
+          <!-- Status text -->
+          <TextBlock Name="StatusText"
+                     Text="Initializing..."
+                     Foreground="#484F58"
+                     FontSize="11"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Version footer -->
+        <StackPanel Grid.Row="2"
+                    HorizontalAlignment="Center"
+                    Margin="0,16,0,20"
+                    Orientation="Horizontal"
+                    Spacing="6">
+          <Ellipse Width="5" Height="5" Fill="#3FB950" VerticalAlignment="Center" />
+          <TextBlock Name="VersionText"
+                     Text="v1.1.6"
+                     Foreground="#30363D"
+                     FontSize="10" />
+        </StackPanel>
+
+      </Grid>
+    </Border>
+  </Border>
+</Window>
