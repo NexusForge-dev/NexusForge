@@ -4,7 +4,7 @@
         xmlns:ctrl="using:NexusForge.Views.Controls"
         x:Class="NexusForge.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="NexusForge v1.1.3"
+        Title="NexusForge v1.1.5"
         Width="950" Height="960"
         MinWidth="950" MinHeight="960"
         MaxWidth="950" MaxHeight="960"
