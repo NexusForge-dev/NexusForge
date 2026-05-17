@@ -138,6 +138,23 @@ public class DmaTestService
         if (_extracted && _dmaDir != null && Directory.Exists(_dmaDir))
             return;
 
+        // Suppress the Microsoft Internet Symbol Store EULA dialog that symsrv.dll
+        // (bundled with MemProcFS 5.17.7) shows on first symbol-server use. Two
+        // belt-and-suspenders mechanisms — either alone is enough on most PCs,
+        // both together is defensive against future symsrv changes:
+        //
+        //   1. _NT_SYMBOL_PATH=""  Tells symsrv "no symbol path at all" — no
+        //      downloads attempted, no EULA prompt path reached. VMMDLL still
+        //      initialises (LeechCore reads don't need kernel symbols); only
+        //      PidGetFromName-style introspection is degraded, which we only
+        //      use in Full Test and can fall back gracefully.
+        //
+        //   2. HKCU\Software\Microsoft\Symbol Server\EULA = 1  The documented
+        //      symsrv registry flag that records "user accepted EULA". Set
+        //      proactively in case some future symsrv variant ignores the
+        //      env var.
+        SuppressSymbolStoreEula();
+
         _dmaDir = Path.Combine(Path.GetTempPath(), $"nf_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_dmaDir);
 
@@ -199,24 +216,38 @@ public class DmaTestService
     }
 
     /// <summary>
-    /// Silently accepts the Microsoft Internet Symbol Store EULA so symsrv.dll
-    /// (used by the bundled MemProcFS) won't show its consent dialog the first
-    /// time it tries to download kernel PDBs. Sets
-    /// HKCU\Software\Microsoft\Symbol Server\EULA = 1, the same value the
-    /// dialog's "Yes" button writes. Idempotent. No admin required (HKCU).
+    /// Suppress the Microsoft Internet Symbol Store EULA prompt that symsrv.dll
+    /// pops up when VMMDLL_Initialize tries to fetch kernel PDBs. Runs before
+    /// any DLL load so the env var is in place when symsrv first reads it.
     /// </summary>
-    private static void EnsureSymbolEulaAccepted()
+    private void SuppressSymbolStoreEula()
     {
+        // (1) Primary: empty _NT_SYMBOL_PATH — symsrv has no server to query,
+        // so the EULA-prompt code path is never reached. Process scope is
+        // enough; child processes (none here) and other dbghelp consumers in
+        // the process inherit it.
+        try
+        {
+            Environment.SetEnvironmentVariable("_NT_SYMBOL_PATH", "", EnvironmentVariableTarget.Process);
+            Environment.SetEnvironmentVariable("_NT_ALT_SYMBOL_PATH", "", EnvironmentVariableTarget.Process);
+        }
+        catch { /* env var write essentially can't fail */ }
+
+        // (2) Backup: HKCU\Software\Microsoft\Symbol Server\EULA = 1 (DWORD),
+        // the documented value the dialog's "Yes" button writes. Idempotent.
+        // HKCU = no admin required.
         try
         {
             using var key = Microsoft.Win32.Registry.CurrentUser
                 .CreateSubKey(@"Software\Microsoft\Symbol Server");
-            if (key == null) return;
-            var existing = key.GetValue("EULA");
-            if (existing is int v && v == 1) return;
-            key.SetValue("EULA", 1, Microsoft.Win32.RegistryValueKind.DWord);
+            if (key != null)
+            {
+                var existing = key.GetValue("EULA");
+                if (!(existing is int v && v == 1))
+                    key.SetValue("EULA", 1, Microsoft.Win32.RegistryValueKind.DWord);
+            }
         }
-        catch { /* best effort — registry write may be policy-blocked */ }
+        catch { /* best effort */ }
     }
 
     public void Cleanup()
@@ -611,7 +642,6 @@ public class DmaTestService
     private IntPtr ConnectDma()
     {
         EnsureDllsExtracted();
-        EnsureSymbolEulaAccepted();
 
         _log.Info("Connecting to FPGA DMA device...");
         var args = new[] { "-device", "fpga", "-norefresh", "-waitinitialize" };
