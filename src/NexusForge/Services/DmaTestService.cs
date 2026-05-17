@@ -198,6 +198,27 @@ public class DmaTestService
         return IntPtr.Zero;
     }
 
+    /// <summary>
+    /// Silently accepts the Microsoft Internet Symbol Store EULA so symsrv.dll
+    /// (used by the bundled MemProcFS) won't show its consent dialog the first
+    /// time it tries to download kernel PDBs. Sets
+    /// HKCU\Software\Microsoft\Symbol Server\EULA = 1, the same value the
+    /// dialog's "Yes" button writes. Idempotent. No admin required (HKCU).
+    /// </summary>
+    private static void EnsureSymbolEulaAccepted()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser
+                .CreateSubKey(@"Software\Microsoft\Symbol Server");
+            if (key == null) return;
+            var existing = key.GetValue("EULA");
+            if (existing is int v && v == 1) return;
+            key.SetValue("EULA", 1, Microsoft.Win32.RegistryValueKind.DWord);
+        }
+        catch { /* best effort — registry write may be policy-blocked */ }
+    }
+
     public void Cleanup()
     {
         if (_dmaDir != null)
@@ -590,6 +611,7 @@ public class DmaTestService
     private IntPtr ConnectDma()
     {
         EnsureDllsExtracted();
+        EnsureSymbolEulaAccepted();
 
         _log.Info("Connecting to FPGA DMA device...");
         var args = new[] { "-device", "fpga", "-norefresh", "-waitinitialize" };
