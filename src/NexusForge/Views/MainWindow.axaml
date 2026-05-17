@@ -4,7 +4,7 @@
         xmlns:ctrl="using:NexusForge.Views.Controls"
         x:Class="NexusForge.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="NexusForge v1.1.7"
+        Title="NexusForge v1.1.8"
         Width="950" Height="960"
         MinWidth="950" MinHeight="960"
         MaxWidth="950" MaxHeight="960"
@@ -307,6 +307,9 @@
                   Full Test: process lookup + latency (4KB reads) + throughput (16MB reads).
                   Latency Test: 30 seconds of 4KB random reads — measures RPS and per-read timing.
                   Throughput Test: 15 seconds of 16MB sequential reads — measures sustained MB/s.
+                  Stress Test: long-duration soak (default 5 min, configurable 1-60 min) mixing
+                  4KB and 16MB reads, tracking failures and the longest consecutive-failure streak.
+                  Reports PASS if the DMA path stays stable for the whole duration.
                 </TextBlock>
                 <Border Background="#1C2333" CornerRadius="6" Padding="12,8" Margin="0,4,0,0">
                   <StackPanel Spacing="4">

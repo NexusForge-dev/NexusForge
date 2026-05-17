@@ -72,6 +72,14 @@ public class DmaTestResult
     public bool ProcessFound { get; set; }
     public string ProcessInfo { get; set; } = "";
 
+    // Stress (lone-style long-duration mixed-size stability test)
+    public TimeSpan StressDuration { get; set; }
+    public long StressTotalReads { get; set; }
+    public long StressFailedReads { get; set; }
+    public long StressMaxConsecFails { get; set; }
+    public float StressFailPct { get; set; }
+    public string StressRating { get; set; } = "—";
+
     public string OverallRating { get; set; } = "—";
     public TimeSpan Duration { get; set; }
 }
@@ -211,6 +219,10 @@ public class DmaTestService
     public Task<DmaTestResult> RunFullTestAsync(
         IProgress<FlashProgress>? progress, CancellationToken ct) =>
         Task.Run(() => RunFullTest(progress, ct), ct);
+
+    public Task<DmaTestResult> RunStressTestAsync(
+        TimeSpan duration, IProgress<FlashProgress>? progress, CancellationToken ct) =>
+        Task.Run(() => RunStressTest(duration, progress, ct), ct);
 
     private DmaTestResult RunLatencyTest(
         TimeSpan duration, IProgress<FlashProgress>? progress, CancellationToken ct)
@@ -375,6 +387,150 @@ public class DmaTestService
                 result.Success ? $"Overall: {result.OverallRating}" : result.ErrorMessage));
         }
         return result;
+    }
+
+    private DmaTestResult RunStressTest(
+        TimeSpan duration, IProgress<FlashProgress>? progress, CancellationToken ct)
+    {
+        var result = new DmaTestResult { TestType = "Stress" };
+        var overallSw = Stopwatch.StartNew();
+        IntPtr hVMM = IntPtr.Zero;
+
+        try
+        {
+            progress?.Report(Prog("Connecting", 5, "Connecting to DMA device..."));
+            hVMM = ConnectDma();
+            var hLC = GetLeechCoreHandle(hVMM);
+
+            progress?.Report(Prog("Mapping", 10, "Getting memory map..."));
+            // Pages usable for small 4K reads (anywhere)
+            var smallPages = BuildMemoryMap(hVMM, pageCount: 100000, minContiguous: 0x1000);
+            // Pages usable for 16M reads (contiguous region required)
+            var bigPages   = BuildMemoryMap(hVMM, pageCount: 1000, minContiguous: 0x1000000);
+            if (smallPages.Length == 0)
+            {
+                result.ErrorMessage = "No valid physical memory pages found";
+                return result;
+            }
+
+            _log.Info($"Running Stress Test for {duration.TotalMinutes:F1} min ({smallPages.Length} small pages, {bigPages.Length} 16MB regions)...");
+            progress?.Report(Prog("Stress", 15, $"Stress soak running ({duration.TotalMinutes:F1} min)..."));
+
+            RunStressLoop(hLC, smallPages, bigPages, duration, progress, ct, result);
+            result.Success = true;
+            result.OverallRating = result.StressRating;
+
+            _log.Info($"Stress Test: {result.StressTotalReads:N0} reads in {result.StressDuration.TotalSeconds:F0}s, " +
+                      $"{result.StressFailedReads:N0} failed ({result.StressFailPct:F3}%), " +
+                      $"max consecutive failures = {result.StressMaxConsecFails} — {result.StressRating}");
+        }
+        catch (Exception ex)
+        {
+            result.ErrorMessage = SanitizeError(ex.Message);
+            _log.Error($"Stress test failed: {result.ErrorMessage}");
+        }
+        finally
+        {
+            if (hVMM != IntPtr.Zero) VmmNative.VMMDLL_Close(hVMM);
+            overallSw.Stop();
+            result.Duration = overallSw.Elapsed;
+            progress?.Report(Prog(
+                result.Success ? "Complete" : "Failed",
+                result.Success ? 100 : 0,
+                result.Success
+                    ? $"Stress: {result.StressFailedReads:N0} fails / {result.StressTotalReads:N0} reads — {result.StressRating}"
+                    : result.ErrorMessage));
+        }
+        return result;
+    }
+
+    private static void RunStressLoop(
+        IntPtr hLC, PhysMemPage[] smallPages, PhysMemPage[] bigPages,
+        TimeSpan duration, IProgress<FlashProgress>? progress,
+        CancellationToken ct, DmaTestResult result)
+    {
+        const uint smallSize = 0x1000;       // 4 KB
+        const uint bigSize   = 0x1000000;    // 16 MB
+        // Ratio: 256 small reads per 1 big read. Same workload mix as lone-DMA
+        // stability soak: lots of metadata-sized reads with periodic bulk reads
+        // to keep both code paths exercised.
+        const int  bigEvery  = 256;
+
+        IntPtr pbSmall = Marshal.AllocHGlobal((int)smallSize);
+        IntPtr pbBig   = bigPages.Length > 0 ? Marshal.AllocHGlobal((int)bigSize) : IntPtr.Zero;
+        try
+        {
+            long total = 0, fails = 0;
+            long maxConsec = 0, curConsec = 0;
+            var sw = Stopwatch.StartNew();
+            var lastProgress = Stopwatch.StartNew();
+            int iter = 0;
+
+            while (sw.Elapsed < duration && !ct.IsCancellationRequested)
+            {
+                bool ok;
+                if (pbBig != IntPtr.Zero && (iter % bigEvery) == 0 && bigPages.Length > 0)
+                {
+                    ok = VmmNative.LcRead(hLC, bigPages[Random.Shared.Next(bigPages.Length)].PageBase, bigSize, pbBig);
+                }
+                else
+                {
+                    ok = VmmNative.LcRead(hLC, smallPages[Random.Shared.Next(smallPages.Length)].PageBase, smallSize, pbSmall);
+                }
+
+                if (ok)
+                {
+                    curConsec = 0;
+                }
+                else
+                {
+                    fails++;
+                    curConsec++;
+                    if (curConsec > maxConsec) maxConsec = curConsec;
+                }
+                total++;
+                iter++;
+
+                // Report progress every 500ms with running stats
+                if (lastProgress.ElapsedMilliseconds >= 500)
+                {
+                    int pct = (int)Math.Min(99, 15 + 84.0 * sw.Elapsed.TotalSeconds / duration.TotalSeconds);
+                    float pctFail = total == 0 ? 0f : (fails / (float)total) * 100f;
+                    progress?.Report(Prog(
+                        "Stress",
+                        pct,
+                        $"{sw.Elapsed.TotalSeconds:F0}s / {duration.TotalSeconds:F0}s — " +
+                        $"{total:N0} reads, {fails:N0} fail ({pctFail:F3}%), max-streak {maxConsec}"));
+                    lastProgress.Restart();
+                }
+            }
+
+            float failPct = total == 0 ? 0f : (fails / (float)total) * 100f;
+            result.StressDuration      = sw.Elapsed;
+            result.StressTotalReads    = total;
+            result.StressFailedReads   = fails;
+            result.StressMaxConsecFails = maxConsec;
+            result.StressFailPct       = failPct;
+
+            // Rating: same spirit as lone-DMA's PASS/FAIL.
+            // PASS-class outcomes require ZERO failures during the soak (any
+            // failure under sustained load points at a regression — wedge,
+            // backpressure, classifier kick). One-off transient fails are
+            // ACCEPTABLE if rare (<0.01% of total). Anything above is FAIL.
+            if (fails == 0)
+                result.StressRating = sw.Elapsed.TotalMinutes >= 5 ? "PERFECT"
+                                    : sw.Elapsed.TotalMinutes >= 2 ? "EXCELLENT"
+                                    :                                "GOOD";
+            else if (failPct < 0.01f && maxConsec < 3)
+                result.StressRating = "ACCEPTABLE";
+            else
+                result.StressRating = "FAIL";
+        }
+        finally
+        {
+            if (pbSmall != IntPtr.Zero) Marshal.FreeHGlobal(pbSmall);
+            if (pbBig   != IntPtr.Zero) Marshal.FreeHGlobal(pbBig);
+        }
     }
 
     private static void RunLatencyLoop(

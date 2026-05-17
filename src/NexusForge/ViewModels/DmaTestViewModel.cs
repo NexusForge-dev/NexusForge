@@ -64,8 +64,13 @@ public class DmaTestViewModel : BaseViewModel
     public string TestFailed { get => _testFailed; set => SetProperty(ref _testFailed, value); }
 
     private int _selectedTestType = 0;
-    public int SelectedTestType { get => _selectedTestType; set => SetProperty(ref _selectedTestType, value); }
-    public string[] TestTypes => new[] { "Full Test", "Latency Test", "Throughput Test" };
+    public int SelectedTestType { get => _selectedTestType; set { if (SetProperty(ref _selectedTestType, value)) OnPropertyChanged(nameof(IsStressTestSelected)); } }
+    public string[] TestTypes => new[] { "Full Test", "Latency Test", "Throughput Test", "Stress Test" };
+
+    // Stress duration in minutes; visible only when Stress Test is selected.
+    private int _stressMinutes = 5;
+    public int StressMinutes { get => _stressMinutes; set => SetProperty(ref _stressMinutes, Math.Clamp(value, 1, 60)); }
+    public bool IsStressTestSelected => _selectedTestType == 3;
 
     public ICommand CheckFtdiCommand { get; }
     public ICommand InstallFtdiCommand { get; }
@@ -147,6 +152,7 @@ public class DmaTestViewModel : BaseViewModel
                 0 => await _dmaTestService.RunFullTestAsync(progress, CancellationToken.None),
                 1 => await _dmaTestService.RunLatencyTestAsync(TimeSpan.FromSeconds(30), progress, CancellationToken.None),
                 2 => await _dmaTestService.RunThroughputTestAsync(TimeSpan.FromSeconds(15), progress, CancellationToken.None),
+                3 => await _dmaTestService.RunStressTestAsync(TimeSpan.FromMinutes(StressMinutes), progress, CancellationToken.None),
                 _ => await _dmaTestService.RunFullTestAsync(progress, CancellationToken.None)
             };
 
@@ -204,6 +210,15 @@ public class DmaTestViewModel : BaseViewModel
             TestThroughput = "Skipped";
 
         long totalFailed = result.LatencyFailedReads + result.ThroughputFailedReads;
+        if (result.TestType == "Stress")
+        {
+            TestRps        = $"{(result.StressDuration.TotalSeconds > 0 ? result.StressTotalReads / result.StressDuration.TotalSeconds : 0):N0}";
+            TestLatency    = $"{result.StressDuration.TotalMinutes:F1} min";
+            TestThroughput = $"{result.StressMaxConsecFails} max-streak";
+            TestMinRead    = $"{result.StressTotalReads:N0} reads";
+            TestMaxRead    = $"{result.StressFailPct:F3} % fail";
+            totalFailed    = result.StressFailedReads;
+        }
         TestFailed = $"{totalFailed:N0}";
 
         HasResults = true;
