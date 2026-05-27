@@ -157,6 +157,26 @@ public class NativeJtagService : IDisposable
         uint idcode = Convert.ToUInt32(idcodeMatch.Groups[1].Value, 16);
         uint idcodeMasked = idcode & 0x0FFFFFFF;
 
+        // Validate that the read IDCODE is actually a Xilinx part. Per IEEE 1149.1
+        // the IDCODE register's bit 0 is always 1; if the JTAG TDO line is stuck
+        // (cable plugged in but no FPGA / unpowered / wrong voltage), the read
+        // returns exactly 0x00000001. The all-ones pattern 0x0FFFFFFF after masking
+        // means TDO stuck high. Either way, no chip is on the chain — refuse to
+        // claim "Connected ✓ Unknown Xilinx" since that misleads the user.
+        // Manufacturer ID lives in bits 11:1 and must equal 0x049 (Xilinx).
+        uint mfgId = (idcodeMasked >> 1) & 0x7FF;
+        bool idcodeValid = (idcodeMasked != 0x00000001) && (idcodeMasked != 0x0FFFFFFF) && (mfgId == 0x049);
+        if (!idcodeValid)
+        {
+            _logService.Error($"JTAG chain returned IDCODE {idcodeHex} — no FPGA detected.");
+            _logService.Warn("Most common cause: the FPGA board is not powered, the JTAG cable is loose,");
+            _logService.Warn("or the JTAG TDO line is stuck (board off / not connected to the host PC).");
+            _logService.Warn("Verify the board has power and the USB-JTAG cable is firmly seated, then retry.");
+            boardInfo.IsDetected = false;
+            boardInfo.JtagCable = "WCH CH347 (USB JTAG)";
+            return boardInfo;
+        }
+
         string deviceName = idcodeMasked switch
         {
             0x0362E093 => "XC7A15T (Artix-7)",
