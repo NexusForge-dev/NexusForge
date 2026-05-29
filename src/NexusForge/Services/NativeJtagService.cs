@@ -533,6 +533,7 @@ if ($dev) {{
             $"init; " +
             $"jtagspi_init 0 {{{bscanFile}}}; " +
             $"jtagspi_program {{{firmwareOcd}}} 0x0; " +
+            $"flash verify_image {{{firmwareOcd}}} 0x0; " +
             $"xc7_program xc7.tap";
 
         var args = $"-s \"{_toolDir}\" -f \"{ch347Cfg}\" -f \"{xc7Cfg}\" -f \"{spiCfg}\" -c \"{commands}; exit\"";
@@ -735,21 +736,133 @@ if ($dev) {{
 
     private FlashResult ReportFlashError(string combined, TimeSpan duration, IProgress<FlashProgress>? progress)
     {
-        string errorMsg = "Programming failed";
+        string errorMsg;
+        string[] hints;
 
-        if (combined.Contains("file not found", StringComparison.OrdinalIgnoreCase) ||
-            combined.Contains("couldn't open", StringComparison.OrdinalIgnoreCase))
-            errorMsg = "Firmware file not accessible.";
-        else if (combined.Contains("no device found", StringComparison.OrdinalIgnoreCase))
-            errorMsg = "CH347 adapter not found. Reconnect USB.";
-        else if (combined.Contains("timeout", StringComparison.OrdinalIgnoreCase))
-            errorMsg = "Programming timed out. Try again.";
+        // Order matters: specific patterns before generic ones.
+        if (combined.Contains("Unknown flash device", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMsg = "SPI flash chip is not responding.";
+            hints = new[]
+            {
+                "JTAG reached the FPGA fine, but the SPI flash chip behind it did not return a valid manufacturer ID.",
+                "Causes: status-register write-protection bits got latched on the flash chip, cold or cracked solder on the flash IC, or hardware failure.",
+                "This is NOT recoverable through JTAG flashing. Recovery requires an external SPI programmer such as a CH341A with a SOIC-8 chip clip directly on the flash IC.",
+                "If the board is new, contact your DMA card supplier about warranty replacement."
+            };
+        }
+        else if (combined.Contains("auto_probe failed", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("jtagspi: device not found", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMsg = "SPI flash probe failed.";
+            hints = new[]
+            {
+                "The BSCAN bridge loaded but the flash chip did not respond to the probe.",
+                "Try: reseat the DMA card in its PCIe slot, then fully power-cycle the host PC (shutdown, not restart) and retry.",
+                "If it still fails, the flash chip needs external recovery via CH341A + SOIC-8 chip clip."
+            };
+        }
         else if (combined.Contains("verify failed", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("verify mismatch", StringComparison.OrdinalIgnoreCase) ||
                  combined.Contains("mismatch", StringComparison.OrdinalIgnoreCase))
-            errorMsg = "Verification failed — flash may be corrupted.";
+        {
+            errorMsg = "Verification failed after write.";
+            hints = new[]
+            {
+                "Data was written to flash but the read-back does not match the firmware file.",
+                "Causes: marginal flash chip, bad USB cable, or signal integrity issues at the JTAG connector.",
+                "Try: swap the JTAG USB cable for a shorter or known-good one, then retry the flash."
+            };
+        }
+        else if (combined.Contains("flash erase failed", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("erase failed", StringComparison.OrdinalIgnoreCase) ||
+                 (combined.Contains("protected", StringComparison.OrdinalIgnoreCase) &&
+                  combined.Contains("sector", StringComparison.OrdinalIgnoreCase)))
+        {
+            errorMsg = "Flash erase blocked. Chip is write-protected.";
+            hints = new[]
+            {
+                "The SPI flash chip has block-protection bits set in its status register.",
+                "Those bits cannot be cleared through JTAG. Use an external CH341A programmer with a SOIC-8 clip to clear the protection bits, then retry from NexusForge."
+            };
+        }
+        else if (combined.Contains("no device found", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("CH347 Open Fail", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("LIBUSB_ERROR", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMsg = "CH347 JTAG adapter not detected.";
+            hints = new[]
+            {
+                "The USB-JTAG cable is not visible to the OS.",
+                "Check: USB cable firmly plugged in at both ends, and the WCH CH347 driver is installed (Device Manager should show 'WCH CH347' under USB devices).",
+                "If the driver shows a yellow warning, reinstall it via the WCH driver included with NexusForge."
+            };
+        }
+        else if (combined.Contains("invalid JTAG IDCODE", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("IDCODE 0x00000001", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("IDCODE 0x0fffffff", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMsg = "JTAG connected but FPGA is not responding.";
+            hints = new[]
+            {
+                "The CH347 is detected but the FPGA is not returning a valid IDCODE.",
+                "Causes: DMA card not powered (PCIe slot has no power), JTAG ribbon loose on the FPGA card, or wrong JTAG voltage.",
+                "Check: the DMA card is fully seated in the PCIe slot, the host PC is on, and the JTAG ribbon is firmly seated on the FPGA's JTAG header. Power-cycle and retry."
+            };
+        }
+        else if (combined.Contains("xc7_program", StringComparison.OrdinalIgnoreCase) &&
+                 (combined.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                  combined.Contains("Error", StringComparison.OrdinalIgnoreCase)))
+        {
+            errorMsg = "BSCAN bridge load failed.";
+            hints = new[]
+            {
+                "Could not load the SPI flash bridge bitstream into the FPGA fabric.",
+                "Causes: JTAG signal integrity (long or cheap USB cable), insufficient PCIe slot power, or FPGA fabric refusing the bitstream.",
+                "Try: shorter USB cable, different PCIe slot, fully power-cycle the host PC, then retry."
+            };
+        }
+        else if (combined.Contains("file not found", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("couldn't open", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMsg = "Firmware file not accessible.";
+            hints = new[]
+            {
+                "The .bin or .bit file path does not exist or is locked.",
+                "Check: the file was not deleted or moved, and is not currently open in another program."
+            };
+        }
+        else if (combined.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("Timed out", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMsg = "Programming timed out.";
+            hints = new[]
+            {
+                "The flash operation took longer than the configured timeout.",
+                "Try: retry once. If it times out again, swap the JTAG USB cable for a shorter or known-good one."
+            };
+        }
         else if (combined.Contains("can't open", StringComparison.OrdinalIgnoreCase))
+        {
             errorMsg = "Could not access JTAG adapter.";
+            hints = new[]
+            {
+                "Another program may be holding the CH347 device open.",
+                "Close other JTAG tools (Vivado, UrJTAG, openFPGALoader, etc.) and retry. If still failing, unplug and replug the USB cable."
+            };
+        }
+        else
+        {
+            errorMsg = "Flash failed.";
+            hints = new[]
+            {
+                "An unrecognized error occurred during flashing.",
+                "Try: retry once, then fully power-cycle the host PC if it fails again.",
+                "If the error persists, copy the error lines from the log above and share them for diagnosis."
+            };
+        }
 
+        // Dump the raw error lines from OpenOCD output for diagnostics.
         foreach (var line in combined.Split('\n'))
         {
             var t = line.Trim();
@@ -765,6 +878,9 @@ if ($dev) {{
         }
 
         _logService.Error($"Flash failed: {errorMsg}");
+        foreach (var hint in hints)
+            _logService.Warn(hint);
+
         progress?.Report(new FlashProgress { Stage = "Failed", Percentage = 0, Message = errorMsg });
 
         return new FlashResult { Success = false, ErrorMessage = errorMsg, Duration = duration };
