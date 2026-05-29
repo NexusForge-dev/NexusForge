@@ -533,7 +533,7 @@ if ($dev) {{
             $"init; " +
             $"jtagspi_init 0 {{{bscanFile}}}; " +
             $"jtagspi_program {{{firmwareOcd}}} 0x0; " +
-            $"flash verify_image {{{firmwareOcd}}} 0x0; " +
+            $"flash verify_bank 0 {{{firmwareOcd}}} 0x0; " +
             $"xc7_program xc7.tap";
 
         var args = $"-s \"{_toolDir}\" -f \"{ch347Cfg}\" -f \"{xc7Cfg}\" -f \"{spiCfg}\" -c \"{commands}; exit\"";
@@ -550,7 +550,7 @@ if ($dev) {{
         };
 
         var allOutput = new System.Text.StringBuilder();
-        bool wrote = false, verified = false;
+        bool wrote = false, verified = false, verifyFailed = false;
         int sectorsTotal = totalSectorsEstimate;
         int sectorsErased = 0;
         bool erasePhase = false;
@@ -665,11 +665,22 @@ if ($dev) {{
                 progress?.Report(new FlashProgress { Stage = "Written", Percentage = 90, Message = "Write complete!" });
             }
 
-            if (t.Contains("verified", StringComparison.OrdinalIgnoreCase))
+            if (t.Contains("contents match", StringComparison.OrdinalIgnoreCase) ||
+                t.Contains("verified", StringComparison.OrdinalIgnoreCase))
             {
                 verified = true;
                 _logService.Info("Firmware verified.");
                 progress?.Report(new FlashProgress { Stage = "Verified", Percentage = 95, Message = "Verification passed!" });
+            }
+
+            // Real read-back mismatch from "flash verify_bank" (host-side memcmp).
+            // This means the bytes on the flash do NOT match the firmware file:
+            // genuine corruption, not the old checksum_memory false alarm. Must
+            // surface as a failure, not be masked by the write having completed.
+            if (t.Contains("contents differ", StringComparison.OrdinalIgnoreCase) ||
+                t.Contains("verify failed", StringComparison.OrdinalIgnoreCase))
+            {
+                verifyFailed = true;
             }
 
             if (t.Contains("Error:", StringComparison.OrdinalIgnoreCase))
@@ -712,10 +723,10 @@ if ($dev) {{
 
         bool success = process.ExitCode == 0;
 
-        if (success && pagesWritten > 0)
-            verified = true;
-
-        if (success || wrote)
+        // A real verify mismatch is a hard failure even though the write itself
+        // completed. Route to ReportFlashError (which gives the "Verification
+        // failed after write" guidance) instead of reporting a false success.
+        if ((success || wrote) && !verifyFailed)
         {
             long kbTotal = (pagesWritten * 256) / 1024;
             _logService.Info($"SPI flash complete in {sw.Elapsed.TotalSeconds:F1}s");
@@ -762,7 +773,8 @@ if ($dev) {{
                 "If it still fails, the flash chip needs external recovery via CH341A + SOIC-8 chip clip."
             };
         }
-        else if (combined.Contains("verify failed", StringComparison.OrdinalIgnoreCase) ||
+        else if (combined.Contains("contents differ", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("verify failed", StringComparison.OrdinalIgnoreCase) ||
                  combined.Contains("verify mismatch", StringComparison.OrdinalIgnoreCase) ||
                  combined.Contains("mismatch", StringComparison.OrdinalIgnoreCase))
         {
