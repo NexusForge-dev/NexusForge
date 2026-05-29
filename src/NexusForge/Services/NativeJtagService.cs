@@ -529,11 +529,20 @@ if ($dev) {{
         var xc7Cfg = Path.Combine(_toolDir!, "xilinx-xc7.cfg");
         var spiCfg = Path.Combine(_toolDir!, "jtagspi.cfg");
 
+        // jtagspi_program (defined in jtagspi.cfg) already runs
+        // "flash write_image erase" + "flash verify_bank" internally. Adding an
+        // explicit verify command here is redundant AND does not work on this
+        // bundled OpenOCD 0.11.0+dev CH347/bscan setup: after jtagspi_init the
+        // command chain closes right after flash probe, so any standalone read/
+        // verify command (verify_image, verify_bank, flash banks) never executes.
+        // Empirically confirmed by running the bundled openocd directly against
+        // the board. v1.1.13's verify_image even errored ("checksum_memory").
+        // So we use exactly the long-proven write flow: write happens in
+        // jtagspi_program; we report "written" honestly and never fake a verify.
         string commands =
             $"init; " +
             $"jtagspi_init 0 {{{bscanFile}}}; " +
             $"jtagspi_program {{{firmwareOcd}}} 0x0; " +
-            $"flash verify_bank 0 {{{firmwareOcd}}} 0x0; " +
             $"xc7_program xc7.tap";
 
         var args = $"-s \"{_toolDir}\" -f \"{ch347Cfg}\" -f \"{xc7Cfg}\" -f \"{spiCfg}\" -c \"{commands}; exit\"";
@@ -736,6 +745,13 @@ if ($dev) {{
                 _logService.Info("  Firmware verified OK.");
                 progress?.Report(new FlashProgress { Stage = "Verified", Percentage = 97, Message = "Verified OK!" });
                 System.Threading.Thread.Sleep(500);
+            }
+            else
+            {
+                // Honest: this JTAG bridge does not return a read-back verify
+                // result, so we do not claim verification. The write itself is
+                // the reliable operation; power-cycle and confirm enumeration.
+                _logService.Info("  Write reported complete by the flash programmer.");
             }
             _logService.Info("Power cycle the target PC to load the new firmware.");
             progress?.Report(new FlashProgress { Stage = "Complete", Percentage = 100, Message = "SPI flash programmed!" });
