@@ -139,10 +139,9 @@
         <Border Padding="16,6,16,4">
           <Border Background="#0D1F1A" BorderBrush="#1A3A2A" BorderThickness="1" CornerRadius="6" Padding="10,7">
             <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#8B949E">
-              Reads the physical memory layout of the target PC via DMA. The cached mmap is
-              automatically used by all speed tests and BAR probe — this eliminates VBS-fenced
-              page read failures on AMD/Intel systems with IOMMU active. Also save a copy to
-              your radar tool folder for tools that need it explicitly.
+              Probes physical memory in 2MB blocks to build a verified map excluding VBS/HVCI-protected
+              pages. Auto-saved and used by all DMA tests. Also save a copy to your radar tool folder.
+              Takes 3-5 seconds. Re-generate after RAM changes or moving to a different PC.
             </TextBlock>
           </Border>
         </Border>

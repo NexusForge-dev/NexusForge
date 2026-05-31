@@ -537,9 +537,11 @@ public class DmaTestService
             var lastProgress = Stopwatch.StartNew();
             int iter = 0;
 
+            var readSw = new Stopwatch();
             while (sw.Elapsed < duration && !ct.IsCancellationRequested)
             {
                 bool ok;
+                readSw.Restart();
                 if (pbBig != IntPtr.Zero && (iter % bigEvery) == 0 && bigPages.Length > 0)
                 {
                     ok = VmmNative.LcRead(hLC, bigPages[Random.Shared.Next(bigPages.Length)].PageBase, bigSize, pbBig);
@@ -548,6 +550,10 @@ public class DmaTestService
                 {
                     ok = VmmNative.LcRead(hLC, smallPages[Random.Shared.Next(smallPages.Length)].PageBase, smallSize, pbSmall);
                 }
+
+                // Fast failure < 5ms = IOMMU-denied page (VBS), skip — not a link failure
+                bool isFastDenial = !ok && readSw.Elapsed.TotalMilliseconds < 5.0;
+                if (isFastDenial) { iter++; continue; }
 
                 if (ok)
                 {
@@ -620,14 +626,21 @@ public class DmaTestService
             while (testSw.Elapsed < duration && !ct.IsCancellationRequested)
             {
                 readSw.Restart();
-                if (VmmNative.LcRead(hLC, pages[Random.Shared.Next(pages.Length)].PageBase, readSize, pb))
+                bool ok = VmmNative.LcRead(hLC, pages[Random.Shared.Next(pages.Length)].PageBase, readSize, pb);
+                var elapsed = readSw.Elapsed;
+                if (ok)
                 {
-                    var speed = readSw.Elapsed;
-                    if (speed < minRead) minRead = speed;
-                    if (speed > maxRead) maxRead = speed;
+                    if (elapsed < minRead) minRead = elapsed;
+                    if (elapsed > maxRead) maxRead = elapsed;
+                    totalCount++;
                 }
-                else { failedCount++; }
-                totalCount++;
+                else if (elapsed.TotalMilliseconds >= 5.0)
+                {
+                    // Slow failure = real link problem (not a fast IOMMU/VBS denial)
+                    failedCount++;
+                    totalCount++;
+                }
+                // Fast failure < 5ms = IOMMU-denied page (VBS), skip silently
             }
 
             PopulateLatencyResult(result, totalCount, failedCount, testSw.Elapsed, minRead, maxRead);
@@ -641,6 +654,7 @@ public class DmaTestService
     {
         const uint readSize = 0x1000000;
         IntPtr pb = Marshal.AllocHGlobal((int)readSize);
+        var readSw = new Stopwatch();
         try
         {
             long totalCount = 0, failedCount = 0;
@@ -648,9 +662,18 @@ public class DmaTestService
 
             while (testSw.Elapsed < duration && !ct.IsCancellationRequested)
             {
-                if (!VmmNative.LcRead(hLC, pages[Random.Shared.Next(pages.Length)].PageBase, readSize, pb))
+                readSw.Restart();
+                bool ok = VmmNative.LcRead(hLC, pages[Random.Shared.Next(pages.Length)].PageBase, readSize, pb);
+                if (ok)
+                {
+                    totalCount++;
+                }
+                else if (readSw.Elapsed.TotalMilliseconds >= 5.0)
+                {
                     failedCount++;
-                totalCount++;
+                    totalCount++;
+                }
+                // Fast failure < 5ms = IOMMU-denied page in scatter, skip
             }
 
             PopulateThroughputResult(result, totalCount, failedCount, testSw.Elapsed);
@@ -658,19 +681,19 @@ public class DmaTestService
         finally { Marshal.FreeHGlobal(pb); }
     }
 
-    private IntPtr ConnectDma()
+    private IntPtr ConnectDma(bool useCachedMmap = true)
     {
         EnsureDllsExtracted();
 
         _log.Info("Connecting to FPGA DMA device...");
         var argList = new List<string> { "-device", "fpga", "-norefresh", "-waitinitialize" };
-        if (HasCachedMmap())
+        if (useCachedMmap && HasCachedMmap())
         {
             argList.Add("-memmap");
             argList.Add(MmapCachePath);
             _log.Info($"Using cached mmap ({Path.GetFileName(MmapCachePath)})");
         }
-        else
+        else if (useCachedMmap)
         {
             _log.Warn("No mmap.txt cached — VBS-fenced pages will appear as read failures on IOMMU systems. Use 'Generate mmap' first.");
         }
@@ -885,62 +908,118 @@ public class DmaTestService
 
         try
         {
-            progress?.Report(Prog("Connecting", 10, "Connecting to DMA device..."));
-            hVMM = ConnectDma();
+            // Connect WITHOUT cached mmap so we can probe the real physical layout.
+            progress?.Report(Prog("Connecting", 5, "Connecting to DMA device..."));
+            hVMM = ConnectDma(useCachedMmap: false);
+            var hLC = GetLeechCoreHandle(hVMM);
 
-            progress?.Report(Prog("Reading", 40, "Reading physical memory map..."));
+            // Get E820 physical map from the OS — this includes VBS-fenced pages.
+            progress?.Report(Prog("Reading", 10, "Reading physical memory layout..."));
             if (!VmmNative.VMMDLL_Map_GetPhysMem(hVMM, out pMap) || pMap == IntPtr.Zero)
                 throw new InvalidOperationException("Failed to retrieve physical memory map.");
 
-            uint cMap = (uint)Marshal.ReadInt32(pMap, 24);
-            if (cMap == 0)
-                throw new InvalidOperationException("Physical memory map is empty.");
-
             const int headerSize = 32;
             const int entrySize  = 16;
+            uint cMap = (uint)Marshal.ReadInt32(pMap, 24);
+            if (cMap == 0) throw new InvalidOperationException("Physical memory map is empty.");
 
-            var lines = new List<string>
-            {
-                "# Physical memory map generated by NexusForge.",
-                "# Save as mmap.txt (or memmap.txt) in your radar/DMA tool folder.",
-                "# Required on AMD and Intel with IOMMU active to prevent link wedge.",
-                "# Re-generate if you change RAM or move to a different target PC.",
-                ""
-            };
-
-            var regions = new List<(ulong Start, ulong End)>();
+            var e820 = new List<(ulong Start, ulong End)>();
             for (int i = 0; i < (int)cMap; i++)
             {
                 IntPtr pEntry = pMap + headerSize + i * entrySize;
                 ulong pa = (ulong)Marshal.ReadInt64(pEntry, 0);
                 ulong cb = (ulong)Marshal.ReadInt64(pEntry, 8);
-                if (cb == 0) continue;
-                regions.Add((pa, pa + cb - 1));
+                if (cb > 0) e820.Add((pa, pa + cb - 1));
             }
+            VmmNative.VMMDLL_MemFree(pMap);
+            pMap = IntPtr.Zero;
 
-            for (int i = 0; i < regions.Count; i++)
-                lines.Add($"{i:D4} {regions[i].Start:X016} - {regions[i].End:X016}");
+            // Probe at 2MB granularity to discover which blocks are accessible.
+            // VBS/HVCI reserves large contiguous pages; a 2MB block probe correctly
+            // identifies them since the secure kernel uses 2MB large-page mappings.
+            const ulong BLOCK = 0x200000UL; // 2MB
+            long totalBlocks = e820.Sum(r => (long)((r.End - r.Start + BLOCK) / BLOCK));
+            long probed = 0;
 
-            result.RegionCount = regions.Count;
-            result.TotalRamGb  = regions.Sum(r => (double)(r.End - r.Start + 1)) / (1024.0 * 1024 * 1024);
+            var verified = new List<(ulong Start, ulong End)>();
+            var probeBuf = Marshal.AllocHGlobal(0x1000);
+            try
+            {
+                foreach (var (regionStart, regionEnd) in e820)
+                {
+                    if (ct.IsCancellationRequested) break;
+
+                    // Align block iteration to 2MB boundary
+                    ulong blockBase = regionStart & ~(BLOCK - 1);
+                    ulong? runStart = null;
+
+                    for (; blockBase <= regionEnd; blockBase += BLOCK)
+                    {
+                        if (ct.IsCancellationRequested) break;
+
+                        // Probe the first accessible page in this 2MB block
+                        ulong probeAddr = Math.Max(blockBase, regionStart);
+                        bool ok = VmmNative.LcRead(hLC, probeAddr, 0x1000, probeBuf);
+                        probed++;
+
+                        int pct = 15 + (int)(75.0 * probed / Math.Max(totalBlocks, 1));
+                        if (probed % 64 == 0)
+                            progress?.Report(Prog("Probing", pct,
+                                $"Probing physical memory... {probed}/{totalBlocks} blocks, {verified.Count} regions found"));
+
+                        if (ok)
+                        {
+                            if (runStart == null) runStart = probeAddr;
+                        }
+                        else
+                        {
+                            if (runStart != null)
+                            {
+                                verified.Add((runStart.Value, Math.Min(blockBase - 1, regionEnd)));
+                                runStart = null;
+                            }
+                        }
+                    }
+
+                    if (runStart != null)
+                        verified.Add((runStart.Value, regionEnd));
+                }
+            }
+            finally { Marshal.FreeHGlobal(probeBuf); }
+
+            if (verified.Count == 0)
+                throw new InvalidOperationException("No accessible physical memory found after probing.");
+
+            // Build mmap.txt content
+            var lines = new List<string>
+            {
+                "# Physical memory map generated by NexusForge (probe-verified).",
+                "# VBS/HVCI-protected pages have been excluded by 2MB-block probing.",
+                "# Save as mmap.txt in your radar/DMA tool folder.",
+                "# Re-generate if you change RAM, BIOS, or move to a different PC.",
+                ""
+            };
+
+            for (int i = 0; i < verified.Count; i++)
+                lines.Add($"{i:D4} {verified[i].Start:X016} - {verified[i].End:X016}");
+
+            result.RegionCount = verified.Count;
+            result.TotalRamGb  = verified.Sum(r => (double)(r.End - r.Start + 1)) / (1024.0 * 1024 * 1024);
             result.Content     = string.Join("\n", lines);
             result.Success     = true;
 
-            // Auto-save to canonical cache location so ConnectDma() + BuildMemoryMap() pick it up.
+            // Auto-save to canonical cache
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(MmapCachePath)!);
                 File.WriteAllText(MmapCachePath, result.Content);
-                _log.Info($"mmap auto-saved to cache: {MmapCachePath}");
+                _log.Info($"Probe-verified mmap saved: {result.RegionCount} regions, {result.TotalRamGb:F1} GB");
             }
-            catch (Exception ex)
-            {
-                _log.Warn($"Could not auto-save mmap cache: {ex.Message}");
-            }
+            catch (Exception ex) { _log.Warn($"Could not auto-save mmap cache: {ex.Message}"); }
 
-            _log.Info($"Memory map ready: {result.RegionCount} regions, {result.TotalRamGb:F1} GB.");
             progress?.Report(Prog("Ready", 100,
-                $"Ready — {result.RegionCount} regions, {result.TotalRamGb:F1} GB. Choose where to save."));
+                $"Ready — {result.RegionCount} regions, {result.TotalRamGb:F1} GB (VBS-excluded). Choose where to save."));
+            _log.Info($"mmap generation complete: {probed} blocks probed, {result.RegionCount} verified regions.");
         }
         catch (Exception ex)
         {
