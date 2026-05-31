@@ -1,10 +1,10 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:NexusForge.ViewModels"
         xmlns:ctrl="using:NexusForge.Views.Controls"
         x:Class="NexusForge.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="NexusForge v1.1.18"
+        Title="NexusForge v1.1.19"
         Width="950" Height="960"
         MinWidth="950" MinHeight="960"
         MaxWidth="950" MaxHeight="960"
@@ -15,7 +15,7 @@
 
   <Window.Styles>
 
-    <!-- ── Primary button ── -->
+    <!-- â”€â”€ Primary button â”€â”€ -->
     <Style Selector="Button.primary">
       <Setter Property="Background"      Value="#00D4AA"/>
       <Setter Property="Foreground"      Value="#0A0D14"/>
@@ -33,7 +33,7 @@
       <Setter Property="Opacity" Value="0.70"/>
     </Style>
 
-    <!-- ── Teal outline ── -->
+    <!-- â”€â”€ Teal outline â”€â”€ -->
     <Style Selector="Button.teal-outline">
       <Setter Property="Background"      Value="Transparent"/>
       <Setter Property="Foreground"      Value="#00D4AA"/>
@@ -48,7 +48,7 @@
       <Setter Property="Opacity" Value="0.75"/>
     </Style>
 
-    <!-- ── Danger outline ── -->
+    <!-- â”€â”€ Danger outline â”€â”€ -->
     <Style Selector="Button.danger-outline">
       <Setter Property="Background"      Value="Transparent"/>
       <Setter Property="Foreground"      Value="#F85149"/>
@@ -64,7 +64,7 @@
       <Setter Property="Opacity" Value="0.75"/>
     </Style>
 
-    <!-- ── Ghost ── -->
+    <!-- â”€â”€ Ghost â”€â”€ -->
     <Style Selector="Button.ghost">
       <Setter Property="Background"      Value="Transparent"/>
       <Setter Property="Foreground"      Value="#6E7681"/>
@@ -78,19 +78,19 @@
       <Setter Property="Opacity" Value="0.70"/>
     </Style>
 
-    <!-- ── Disabled ── -->
+    <!-- â”€â”€ Disabled â”€â”€ -->
     <Style Selector="Button:disabled">
       <Setter Property="Opacity" Value="0.32"/>
       <Setter Property="Cursor"  Value="Arrow"/>
     </Style>
 
-    <!-- ── CheckBox ── -->
+    <!-- â”€â”€ CheckBox â”€â”€ -->
     <Style Selector="CheckBox">
       <Setter Property="Foreground" Value="#8B949E"/>
       <Setter Property="FontSize"   Value="12"/>
     </Style>
 
-    <!-- ── ProgressBar ── -->
+    <!-- â”€â”€ ProgressBar â”€â”€ -->
     <Style Selector="ProgressBar">
       <Setter Property="Foreground"   Value="#00D4AA"/>
       <Setter Property="Background"   Value="#21262D"/>
@@ -99,7 +99,7 @@
       <Setter Property="MinHeight"    Value="6"/>
     </Style>
 
-    <!-- ── TabControl chrome ── -->
+    <!-- â”€â”€ TabControl chrome â”€â”€ -->
     <Style Selector="TabControl">
       <Setter Property="Background"   Value="Transparent"/>
       <Setter Property="Padding"      Value="0"/>
@@ -126,19 +126,19 @@
   </Window.Styles>
 
   <!--
-    DockPanel layout — items dock in order:
-      1. Header       → Top    (fixed height)
-      2. StatusBar    → Bottom (fixed height)
-      3. StatusLog    → Bottom (fixed 200px)
-      4. TabControl   → Fill   (takes ALL remaining space)
+    DockPanel layout â€” items dock in order:
+      1. Header       â†’ Top    (fixed height)
+      2. StatusBar    â†’ Bottom (fixed height)
+      3. StatusLog    â†’ Bottom (fixed 200px)
+      4. TabControl   â†’ Fill   (takes ALL remaining space)
     This guarantees the log never pushes tab content up.
   -->
   <DockPanel LastChildFill="True">
 
-    <!-- ─── 1. HEADER — docked top ─── -->
+    <!-- â”€â”€â”€ 1. HEADER â€” docked top â”€â”€â”€ -->
     <ctrl:HeaderControl DockPanel.Dock="Top" DataContext="{Binding}" />
 
-    <!-- ─── 2. STATUS BAR — docked bottom ─── -->
+    <!-- â”€â”€â”€ 2. STATUS BAR â€” docked bottom â”€â”€â”€ -->
     <Border DockPanel.Dock="Bottom"
             Background="#161B22"
             BorderBrush="#21262D"
@@ -155,16 +155,16 @@
       </Grid>
     </Border>
 
-    <!-- ─── 3. STATUS LOG — docked bottom, FIXED 200px height ─── -->
+    <!-- â”€â”€â”€ 3. STATUS LOG â€” docked bottom, FIXED 200px height â”€â”€â”€ -->
     <ctrl:StatusLogPanel DockPanel.Dock="Bottom"
                          DataContext="{Binding}"
                          Height="200"
                          Margin="12,4,12,8" />
 
-    <!-- ─── 4. TAB CONTROL — fills all remaining space ─── -->
+    <!-- â”€â”€â”€ 4. TAB CONTROL â€” fills all remaining space â”€â”€â”€ -->
     <TabControl Background="Transparent" Margin="0">
 
-      <!-- ═══ Tab 1: BOARD & FLASH ═══ -->
+      <!-- â•â•â• Tab 1: BOARD & FLASH â•â•â• -->
       <TabItem Header="  BOARD &amp; FLASH  ">
         <StackPanel>
           <ctrl:BoardInfoPanel DataContext="{Binding BoardInfo}" Margin="12,8,12,0" />
@@ -172,7 +172,7 @@
         </StackPanel>
       </TabItem>
 
-      <!-- ═══ Tab 2: DRIVER MANAGER ═══ -->
+      <!-- â•â•â• Tab 2: DRIVER MANAGER â•â•â• -->
       <TabItem Header="  DRIVER MANAGER  ">
         <StackPanel>
           <ctrl:DriverPanel DataContext="{Binding Driver}" Margin="12,8,12,6" />
@@ -212,7 +212,7 @@
                                  FontFamily="Consolas,Courier New,monospace">
                         https://github.com/WCHSoftGroup/ch347
                       </TextBlock>
-                      <TextBlock Text="Release: CH347_OpenOCD_Release — contains OpenOCD binary and CH347FPGATool"
+                      <TextBlock Text="Release: CH347_OpenOCD_Release â€” contains OpenOCD binary and CH347FPGATool"
                                  Foreground="#6E7681" FontSize="11" />
                     </StackPanel>
                   </Border>
@@ -223,7 +223,7 @@
           </StackPanel>
       </TabItem>
 
-      <!-- ═══ Tab 4: BAR PROBE ═══ -->
+      <!-- â•â•â• Tab 4: BAR PROBE â•â•â• -->
       <TabItem Header="  BAR PROBE  ">
         <StackPanel>
           <ctrl:BarProbePanel DataContext="{Binding BarProbe}" Margin="12,8,12,6" />
@@ -252,17 +252,17 @@
                   <Run FontWeight="SemiBold" Foreground="#E3B341">Limitation:</Run>
                   The DMA card cannot read its OWN BAR memory via this path on
                   most chipsets (PCIe self-loopback / peer-to-peer routing is
-                  usually blocked). Use "Read DMA Config Space" instead — it uses
+                  usually blocked). Use "Read DMA Config Space" instead â€” it uses
                   Type 0 config TLPs which the root complex always routes correctly.
                 </TextBlock>
                 <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
                   Helpers:
                   <LineBreak/>
-                  • <Run FontWeight="SemiBold">Test FPGA Link</Run> — reads system RAM at 0x100000, confirms FTDI + leechcore + FPGA chain works
+                  â€¢ <Run FontWeight="SemiBold">Test FPGA Link</Run> â€” reads system RAM at 0x100000, confirms FTDI + leechcore + FPGA chain works
                   <LineBreak/>
-                  • <Run FontWeight="SemiBold">Read DMA Config Space</Run> — reads the FPGA's own PCIe config space (vendor/device IDs, BARs, capabilities, DSN)
+                  â€¢ <Run FontWeight="SemiBold">Read DMA Config Space</Run> â€” reads the FPGA's own PCIe config space (vendor/device IDs, BARs, capabilities, DSN)
                   <LineBreak/>
-                  • <Run FontWeight="SemiBold">List PCIe Devices</Run> — enumerates host PCIe devices + their BAR address ranges so you can pick a target without hunting in Device Manager
+                  â€¢ <Run FontWeight="SemiBold">List PCIe Devices</Run> â€” enumerates host PCIe devices + their BAR address ranges so you can pick a target without hunting in Device Manager
                 </TextBlock>
                 <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
                   Polling: appends a timestamped hex dump to the log file every
@@ -276,7 +276,7 @@
         </StackPanel>
       </TabItem>
 
-      <!-- ═══ Tab 3: DMA TESTING ═══ -->
+      <!-- â•â•â• Tab 3: DMA TESTING â•â•â• -->
       <TabItem Header="  DMA TESTING  ">
         <StackPanel>
           <ctrl:DmaTestPanel DataContext="{Binding DmaTest}" Margin="12,8,12,6" />
@@ -305,8 +305,8 @@
                 </TextBlock>
                 <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap">
                   Full Test: process lookup + latency (4KB reads) + throughput (16MB reads).
-                  Latency Test: 30 seconds of 4KB random reads — measures RPS and per-read timing.
-                  Throughput Test: 15 seconds of 16MB sequential reads — measures sustained MB/s.
+                  Latency Test: 30 seconds of 4KB random reads â€” measures RPS and per-read timing.
+                  Throughput Test: 15 seconds of 16MB sequential reads â€” measures sustained MB/s.
                   Stress Test: long-duration soak (default 5 min, configurable 1-60 min) mixing
                   4KB and 16MB reads, tracking failures and the longest consecutive-failure streak.
                   Reports PASS if the DMA path stays stable for the whole duration.

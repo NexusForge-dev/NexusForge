@@ -80,6 +80,9 @@ public class DmaTestViewModel : BaseViewModel
     public string MmapStatus { get => _mmapStatus; set => SetProperty(ref _mmapStatus, value); }
     public string MmapStatusColor { get => _mmapStatusColor; set => SetProperty(ref _mmapStatusColor, value); }
 
+    /// <summary>Set by the View to handle the save dialog when mmap content is ready.</summary>
+    public Func<string, Task>? MmapReadyToSave { get; set; }
+
     public ICommand CheckFtdiCommand { get; }
     public ICommand InstallFtdiCommand { get; }
     public ICommand UninstallFtdiCommand { get; }
@@ -187,50 +190,15 @@ public class DmaTestViewModel : BaseViewModel
 
         try
         {
-            // Collect candidate output directories: NexusForge's own extract dir,
-            // plus well-known tool folder names relative to the user's Desktop.
-            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            var candidateDirs = new List<string>();
+            var progress = new Progress<FlashProgress>(p => MmapStatus = p.Message);
 
-            // Well-known radar tool folder names on the radar PC's Desktop
-            var knownToolFolders = new[]
-            {
-                "BlurredGG", "PCILEECH", "MemProcFS", "ProCS2_v1.43",
-                "ProCS2", "eden", "Arc", "DMATool", "tools", "radar"
-            };
-            foreach (var name in knownToolFolders)
-            {
-                var path = Path.Combine(desktop, name);
-                if (Directory.Exists(path))
-                    candidateDirs.Add(path);
-            }
-
-            // Also write to Desktop root for easy manual placement
-            candidateDirs.Add(desktop);
-
-            if (candidateDirs.Count == 0)
-            {
-                MmapStatus = "No tool directories found on Desktop.";
-                MmapStatusColor = "#F85149";
-                return;
-            }
-
-            var progress = new Progress<FlashProgress>(p =>
-            {
-                MmapStatus = p.Message;
-            });
-
-            var result = await _dmaTestService.GenerateMmapAsync(
-                candidateDirs, progress, CancellationToken.None);
+            var result = await _dmaTestService.GenerateMmapAsync(progress, CancellationToken.None);
 
             if (result.Success)
             {
-                MmapStatus = $"Written to {result.WrittenPaths.Count / 2} folder(s) " +
-                             $"({result.RegionCount} regions, {result.TotalRamGb:F1} GB)";
                 MmapStatusColor = "#00D4AA";
-                _logService.Info($"mmap.txt generated: {result.RegionCount} regions, {result.TotalRamGb:F1} GB.");
-                foreach (var p in result.WrittenPaths)
-                    _logService.Info($"  Wrote: {p}");
+                if (MmapReadyToSave != null)
+                    await MmapReadyToSave(result.Content);
             }
             else
             {

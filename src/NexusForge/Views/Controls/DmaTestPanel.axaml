@@ -126,10 +126,10 @@
         <Border Padding="16,8,16,4">
           <Border Background="#0D1F1A" BorderBrush="#1A3A2A" BorderThickness="1" CornerRadius="6" Padding="10,7">
             <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#8B949E">
-              Connects to the FPGA and reads the physical memory layout of the target PC.
-              Writes mmap.txt and memmap.txt to all detected radar tool folders on your Desktop
-              (BlurredGG, PCILEECH, MemProcFS, ProCS2 and others). Without this file,
-              DMA tools probe the MMIO hole and permanently wedge the link until FPGA power-cycle.
+              Connects to the FPGA, reads the physical memory layout of the target PC,
+              and opens a save dialog. Save the file as mmap.txt (or memmap.txt) into
+              the folder of any radar or DMA tool that needs it. Without this file,
+              DMA tools probe the MMIO hole and permanently wedge the link until power-cycle.
             </TextBlock>
           </Border>
         </Border>
