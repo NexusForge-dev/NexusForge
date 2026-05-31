@@ -72,10 +72,19 @@ public class DmaTestViewModel : BaseViewModel
     public int StressMinutes { get => _stressMinutes; set => SetProperty(ref _stressMinutes, Math.Clamp(value, 1, 60)); }
     public bool IsStressTestSelected => _selectedTestType == 3;
 
+    // mmap generation
+    private bool _isGeneratingMmap;
+    private string _mmapStatus = "";
+    private string _mmapStatusColor = "#6E7681";
+    public bool IsGeneratingMmap { get => _isGeneratingMmap; set { SetProperty(ref _isGeneratingMmap, value); ((AsyncRelayCommand)GenerateMmapCommand)?.NotifyCanExecuteChanged(); } }
+    public string MmapStatus { get => _mmapStatus; set => SetProperty(ref _mmapStatus, value); }
+    public string MmapStatusColor { get => _mmapStatusColor; set => SetProperty(ref _mmapStatusColor, value); }
+
     public ICommand CheckFtdiCommand { get; }
     public ICommand InstallFtdiCommand { get; }
     public ICommand UninstallFtdiCommand { get; }
     public ICommand RunSpeedTestCommand { get; }
+    public ICommand GenerateMmapCommand { get; }
 
     public DmaTestViewModel(FtdiDriverService ftdiService, DmaTestService dmaTestService, LogService logService)
     {
@@ -87,6 +96,7 @@ public class DmaTestViewModel : BaseViewModel
         InstallFtdiCommand = new AsyncRelayCommand(InstallFtdiAsync, () => !IsFtdiBusy);
         UninstallFtdiCommand = new AsyncRelayCommand(UninstallFtdiAsync, () => !IsFtdiBusy);
         RunSpeedTestCommand = new AsyncRelayCommand(RunSpeedTestAsync, () => !IsTesting);
+        GenerateMmapCommand = new AsyncRelayCommand(GenerateMmapAsync, () => !IsGeneratingMmap);
     }
 
     private async Task CheckFtdiAsync()
@@ -166,6 +176,77 @@ public class DmaTestViewModel : BaseViewModel
         finally
         {
             IsTesting = false;
+        }
+    }
+
+    private async Task GenerateMmapAsync()
+    {
+        IsGeneratingMmap = true;
+        MmapStatus = "Connecting to DMA device...";
+        MmapStatusColor = "#E3B341";
+
+        try
+        {
+            // Collect candidate output directories: NexusForge's own extract dir,
+            // plus well-known tool folder names relative to the user's Desktop.
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            var candidateDirs = new List<string>();
+
+            // Well-known radar tool folder names on the radar PC's Desktop
+            var knownToolFolders = new[]
+            {
+                "BlurredGG", "PCILEECH", "MemProcFS", "ProCS2_v1.43",
+                "ProCS2", "eden", "Arc", "DMATool", "tools", "radar"
+            };
+            foreach (var name in knownToolFolders)
+            {
+                var path = Path.Combine(desktop, name);
+                if (Directory.Exists(path))
+                    candidateDirs.Add(path);
+            }
+
+            // Also write to Desktop root for easy manual placement
+            candidateDirs.Add(desktop);
+
+            if (candidateDirs.Count == 0)
+            {
+                MmapStatus = "No tool directories found on Desktop.";
+                MmapStatusColor = "#F85149";
+                return;
+            }
+
+            var progress = new Progress<FlashProgress>(p =>
+            {
+                MmapStatus = p.Message;
+            });
+
+            var result = await _dmaTestService.GenerateMmapAsync(
+                candidateDirs, progress, CancellationToken.None);
+
+            if (result.Success)
+            {
+                MmapStatus = $"Written to {result.WrittenPaths.Count / 2} folder(s) " +
+                             $"({result.RegionCount} regions, {result.TotalRamGb:F1} GB)";
+                MmapStatusColor = "#00D4AA";
+                _logService.Info($"mmap.txt generated: {result.RegionCount} regions, {result.TotalRamGb:F1} GB.");
+                foreach (var p in result.WrittenPaths)
+                    _logService.Info($"  Wrote: {p}");
+            }
+            else
+            {
+                MmapStatus = result.ErrorMessage;
+                MmapStatusColor = "#F85149";
+            }
+        }
+        catch (Exception ex)
+        {
+            MmapStatus = $"Failed: {ex.Message}";
+            MmapStatusColor = "#F85149";
+            _logService.Error($"mmap generation error: {ex.Message}");
+        }
+        finally
+        {
+            IsGeneratingMmap = false;
         }
     }
 

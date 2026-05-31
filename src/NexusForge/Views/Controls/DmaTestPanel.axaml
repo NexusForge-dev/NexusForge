@@ -98,6 +98,57 @@
       </StackPanel>
     </Border>
 
+    <!-- ═══ MEMORY MAP GENERATOR ═══ -->
+    <Border Background="#161B22" BorderBrush="#21262D" BorderThickness="1" CornerRadius="8">
+      <StackPanel>
+
+        <!-- Header -->
+        <Border BorderBrush="#21262D" BorderThickness="0,0,0,1" Padding="16,10,16,10">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <Border Grid.Column="0" Background="#00D4AA" Width="3" CornerRadius="2"
+                    VerticalAlignment="Stretch" Margin="0,0,10,0" />
+            <StackPanel Grid.Column="1" Spacing="1">
+              <TextBlock Text="MEMORY MAP GENERATOR"
+                         FontSize="11" FontWeight="SemiBold" Foreground="#E6EDF3"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="Required for stable DMA on AMD and Intel with IOMMU active"
+                         FontSize="10" Foreground="#6E7681" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="primary" Background="#00D4AA"
+                    Command="{Binding GenerateMmapCommand}"
+                    IsEnabled="{Binding !IsGeneratingMmap}" Padding="14,5">
+              Generate mmap
+            </Button>
+          </Grid>
+        </Border>
+
+        <!-- Description -->
+        <Border Padding="16,8,16,4">
+          <Border Background="#0D1F1A" BorderBrush="#1A3A2A" BorderThickness="1" CornerRadius="6" Padding="10,7">
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#8B949E">
+              Connects to the FPGA and reads the physical memory layout of the target PC.
+              Writes mmap.txt and memmap.txt to all detected radar tool folders on your Desktop
+              (BlurredGG, PCILEECH, MemProcFS, ProCS2 and others). Without this file,
+              DMA tools probe the MMIO hole and permanently wedge the link until FPGA power-cycle.
+            </TextBlock>
+          </Border>
+        </Border>
+
+        <!-- Progress / status -->
+        <Border Padding="16,2,16,4" IsVisible="{Binding IsGeneratingMmap}">
+          <ProgressBar IsIndeterminate="True" Foreground="#00D4AA" Background="#21262D"
+                       Height="4" CornerRadius="2" MinHeight="4" />
+        </Border>
+
+        <!-- Result status -->
+        <Border Padding="16,2,16,10" IsVisible="{Binding MmapStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+          <TextBlock Text="{Binding MmapStatus}" Foreground="{Binding MmapStatusColor}"
+                     FontSize="11" FontFamily="Consolas,Courier New,monospace" />
+        </Border>
+
+      </StackPanel>
+    </Border>
+
     <!-- ═══ DMA SPEED TEST ═══ -->
     <Border Background="#161B22" BorderBrush="#21262D" BorderThickness="1" CornerRadius="8">
       <StackPanel>
