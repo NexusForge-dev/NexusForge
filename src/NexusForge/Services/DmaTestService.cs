@@ -109,6 +109,16 @@ public class DmaTestService
     private static bool _resolverRegistered;
     private static readonly object _resolverLock = new();
 
+    // Canonical mmap.txt location — written on generate, read on every connect + test.
+    public static string MmapCachePath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "NexusForge", "mmap.txt");
+
+    public static bool HasCachedMmap() => File.Exists(MmapCachePath);
+
+    public static DateTime? GetMmapCacheAge() =>
+        File.Exists(MmapCachePath) ? File.GetLastWriteTime(MmapCachePath) : null;
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr LoadLibraryW(string lpLibFileName);
 
@@ -653,7 +663,18 @@ public class DmaTestService
         EnsureDllsExtracted();
 
         _log.Info("Connecting to FPGA DMA device...");
-        var args = new[] { "-device", "fpga", "-norefresh", "-waitinitialize" };
+        var argList = new List<string> { "-device", "fpga", "-norefresh", "-waitinitialize" };
+        if (HasCachedMmap())
+        {
+            argList.Add("-memmap");
+            argList.Add(MmapCachePath);
+            _log.Info($"Using cached mmap ({Path.GetFileName(MmapCachePath)})");
+        }
+        else
+        {
+            _log.Warn("No mmap.txt cached — VBS-fenced pages will appear as read failures on IOMMU systems. Use 'Generate mmap' first.");
+        }
+        var args = argList.ToArray();
         var hVMM = VmmNative.VMMDLL_Initialize(args.Length, args);
         if (hVMM == IntPtr.Zero)
             throw new InvalidOperationException(
@@ -695,20 +716,62 @@ public class DmaTestService
                 ulong pa = (ulong)Marshal.ReadInt64(pEntry, 0);
                 ulong cb = (ulong)Marshal.ReadInt64(pEntry, 8);
 
-                for (ulong p = pa, rem = cb; rem > 0x1000; p += 0x1000, rem -= 0x1000)
+                // >= not > so the last page of each region is included
+                for (ulong p = pa, rem = cb; rem >= 0x1000; p += 0x1000, rem -= 0x1000)
                     pages.Add(new PhysMemPage { PageBase = p, RemainingBytes = rem });
             }
 
-            var filtered = pages
-                .Where(p => p.RemainingBytes >= minContiguous)
+            // Load mmap intervals to exclude VBS-fenced pages that LcRead returns false for.
+            var mmapIntervals = LoadMmapIntervals();
+
+            // Shuffle BEFORE Take so the pool is a random sample from all valid pages,
+            // not just the lowest addresses in physical memory order.
+            var allValid = pages.ToArray();
+            Random.Shared.Shuffle(allValid);
+
+            var filtered = allValid
+                .Where(p => p.RemainingBytes >= minContiguous
+                         && IsInMmap(p.PageBase, mmapIntervals))
                 .Take(pageCount)
                 .ToArray();
 
-            Random.Shared.Shuffle(filtered);
-            _log.Info($"Memory map: {cMap} regions, {filtered.Length} usable pages");
+            _log.Info($"Memory map: {cMap} regions, {filtered.Length} usable pages" +
+                      (mmapIntervals.Length > 0 ? $" (mmap-filtered, {mmapIntervals.Length} intervals)" : " (no mmap filter)"));
             return filtered;
         }
         finally { VmmNative.VMMDLL_MemFree(pMap); }
+    }
+
+    private static (ulong Start, ulong End)[] LoadMmapIntervals()
+    {
+        if (!HasCachedMmap()) return Array.Empty<(ulong, ulong)>();
+        try
+        {
+            var intervals = new List<(ulong, ulong)>();
+            foreach (var line in File.ReadLines(MmapCachePath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith('#') || trimmed.Length == 0) continue;
+                var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                // Format: "NNNN XXXXXXXXXXXXXXXX - YYYYYYYYYYYYYYYY"
+                if (parts.Length < 4) continue;
+                int idx = parts[0].Length == 4 && !parts[0].StartsWith("0x") ? 1 : 0;
+                if (idx + 2 >= parts.Length) continue;
+                if (!ulong.TryParse(parts[idx],     System.Globalization.NumberStyles.HexNumber, null, out ulong start)) continue;
+                if (!ulong.TryParse(parts[idx + 2], System.Globalization.NumberStyles.HexNumber, null, out ulong end)) continue;
+                if (end >= start) intervals.Add((start, end));
+            }
+            return intervals.ToArray();
+        }
+        catch { return Array.Empty<(ulong, ulong)>(); }
+    }
+
+    private static bool IsInMmap(ulong pageBase, (ulong Start, ulong End)[] intervals)
+    {
+        if (intervals.Length == 0) return true; // no filter — pass everything through
+        foreach (var (start, end) in intervals)
+            if (pageBase >= start && pageBase <= end) return true;
+        return false;
     }
 
     private void RunProcessLookup(IntPtr hVMM, DmaTestResult result)
@@ -862,6 +925,18 @@ public class DmaTestService
             result.TotalRamGb  = regions.Sum(r => (double)(r.End - r.Start + 1)) / (1024.0 * 1024 * 1024);
             result.Content     = string.Join("\n", lines);
             result.Success     = true;
+
+            // Auto-save to canonical cache location so ConnectDma() + BuildMemoryMap() pick it up.
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(MmapCachePath)!);
+                File.WriteAllText(MmapCachePath, result.Content);
+                _log.Info($"mmap auto-saved to cache: {MmapCachePath}");
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Could not auto-save mmap cache: {ex.Message}");
+            }
 
             _log.Info($"Memory map ready: {result.RegionCount} regions, {result.TotalRamGb:F1} GB.");
             progress?.Report(Prog("Ready", 100,

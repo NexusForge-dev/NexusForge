@@ -4,7 +4,7 @@
         xmlns:ctrl="using:NexusForge.Views.Controls"
         x:Class="NexusForge.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="NexusForge v1.1.19"
+        Title="NexusForge v1.1.20"
         Width="950" Height="960"
         MinWidth="950" MinHeight="960"
         MaxWidth="950" MaxHeight="960"
@@ -278,8 +278,9 @@
 
       <!-- â•â•â• Tab 3: DMA TESTING â•â•â• -->
       <TabItem Header="  DMA TESTING  ">
-        <StackPanel>
-          <ctrl:DmaTestPanel DataContext="{Binding DmaTest}" Margin="12,8,12,6" />
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+            <ctrl:DmaTestPanel DataContext="{Binding DmaTest}" Margin="12,8,12,6" />
 
           <!-- Info card -->
           <Border Background="#161B22"
@@ -333,7 +334,8 @@
 
             </StackPanel>
           </Border>
-        </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
       </TabItem>
 
     </TabControl>

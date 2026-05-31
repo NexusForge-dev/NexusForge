@@ -76,9 +76,30 @@ public class DmaTestViewModel : BaseViewModel
     private bool _isGeneratingMmap;
     private string _mmapStatus = "";
     private string _mmapStatusColor = "#6E7681";
+    private string _mmapCacheStatus = "";
+    private string _mmapCacheColor = "#6E7681";
     public bool IsGeneratingMmap { get => _isGeneratingMmap; set { SetProperty(ref _isGeneratingMmap, value); ((AsyncRelayCommand)GenerateMmapCommand)?.NotifyCanExecuteChanged(); } }
     public string MmapStatus { get => _mmapStatus; set => SetProperty(ref _mmapStatus, value); }
     public string MmapStatusColor { get => _mmapStatusColor; set => SetProperty(ref _mmapStatusColor, value); }
+    public string MmapCacheStatus { get => _mmapCacheStatus; set => SetProperty(ref _mmapCacheStatus, value); }
+    public string MmapCacheColor { get => _mmapCacheColor; set => SetProperty(ref _mmapCacheColor, value); }
+
+    public void RefreshMmapCacheStatus()
+    {
+        var age = DmaTestService.GetMmapCacheAge();
+        if (age == null)
+        {
+            MmapCacheStatus = "No mmap cached — generate before running tests";
+            MmapCacheColor  = "#F85149";
+        }
+        else
+        {
+            var days = (DateTime.Now - age.Value).TotalDays;
+            var label = days < 1 ? "today" : days < 2 ? "1 day ago" : $"{(int)days} days ago";
+            MmapCacheStatus = $"mmap cached ({label}) — auto-used for all tests";
+            MmapCacheColor  = days > 30 ? "#E3B341" : "#3FB950";
+        }
+    }
 
     /// <summary>Set by the View to handle the save dialog when mmap content is ready.</summary>
     public Func<string, Task>? MmapReadyToSave { get; set; }
@@ -100,6 +121,8 @@ public class DmaTestViewModel : BaseViewModel
         UninstallFtdiCommand = new AsyncRelayCommand(UninstallFtdiAsync, () => !IsFtdiBusy);
         RunSpeedTestCommand = new AsyncRelayCommand(RunSpeedTestAsync, () => !IsTesting);
         GenerateMmapCommand = new AsyncRelayCommand(GenerateMmapAsync, () => !IsGeneratingMmap);
+
+        RefreshMmapCacheStatus();
     }
 
     private async Task CheckFtdiAsync()
@@ -197,6 +220,7 @@ public class DmaTestViewModel : BaseViewModel
             if (result.Success)
             {
                 MmapStatusColor = "#00D4AA";
+                RefreshMmapCacheStatus();
                 if (MmapReadyToSave != null)
                     await MmapReadyToSave(result.Content);
             }

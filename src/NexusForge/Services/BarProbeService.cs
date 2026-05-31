@@ -192,7 +192,13 @@ public sealed class BarProbeService
         // session so we don't share leechcore handles with a running speed test.
         _dmaTest.EnsureLibraries();
 
-        var args = new[] { "-device", "fpga", "-norefresh", "-waitinitialize" };
+        var argList = new List<string> { "-device", "fpga", "-norefresh", "-waitinitialize" };
+        if (DmaTestService.HasCachedMmap())
+        {
+            argList.Add("-memmap");
+            argList.Add(DmaTestService.MmapCachePath);
+        }
+        var args = argList.ToArray();
         var hVMM = VmmNative.VMMDLL_Initialize(args.Length, args);
         if (hVMM == IntPtr.Zero)
             throw new InvalidOperationException(
