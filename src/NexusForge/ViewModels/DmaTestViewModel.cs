@@ -17,9 +17,9 @@ public class DmaTestViewModel : BaseViewModel
     private bool _isFtdiDeviceDetected;
     private string _ftdiStatusText = "Not checked";
     private string _ftdiStatusColor = "#6E7681";
-    private string _ftdiVersionText = "—";
-    private string _ftdiDeviceName = "—";
-    private string _ftdiDriverType = "—";
+    private string _ftdiVersionText = "-";
+    private string _ftdiDeviceName = "-";
+    private string _ftdiDriverType = "-";
     private string _ftdiBusyMessage = "";
     private string _ftdiInfPath = "";
 
@@ -27,14 +27,14 @@ public class DmaTestViewModel : BaseViewModel
     private bool _hasResults;
     private int _testPercentage;
     private string _testMessage = "";
-    private string _testRating = "—";
-    private string _testRps = "—";
-    private string _testLatency = "—";
+    private string _testRating = "-";
+    private string _testRps = "-";
+    private string _testLatency = "-";
     private string _testStatus = "Not tested";
-    private string _testThroughput = "—";
-    private string _testMinRead = "—";
-    private string _testMaxRead = "—";
-    private string _testFailed = "—";
+    private string _testThroughput = "-";
+    private string _testMinRead = "-";
+    private string _testMaxRead = "-";
+    private string _testFailed = "-";
 
     public bool IsFtdiBusy { get => _isFtdiBusy; set { SetProperty(ref _isFtdiBusy, value); ((AsyncRelayCommand)CheckFtdiCommand).NotifyCanExecuteChanged(); ((AsyncRelayCommand)InstallFtdiCommand).NotifyCanExecuteChanged(); ((AsyncRelayCommand)UninstallFtdiCommand).NotifyCanExecuteChanged(); } }
     public bool IsFtdiChecked { get => _isFtdiChecked; set { if (SetProperty(ref _isFtdiChecked, value)) { OnPropertyChanged(nameof(ShowFtdiNotConnected)); OnPropertyChanged(nameof(ShowFtdiDriverMissing)); } } }
@@ -78,25 +78,33 @@ public class DmaTestViewModel : BaseViewModel
     private string _mmapStatusColor = "#6E7681";
     private string _mmapCacheStatus = "";
     private string _mmapCacheColor = "#6E7681";
-    public bool IsGeneratingMmap { get => _isGeneratingMmap; set { SetProperty(ref _isGeneratingMmap, value); ((AsyncRelayCommand)GenerateMmapCommand)?.NotifyCanExecuteChanged(); } }
+    public bool IsGeneratingMmap { get => _isGeneratingMmap; set { SetProperty(ref _isGeneratingMmap, value); ((AsyncRelayCommand)GenerateMmapCommand)?.NotifyCanExecuteChanged(); ((AsyncRelayCommand)DeployToToolsCommand)?.NotifyCanExecuteChanged(); } }
     public string MmapStatus { get => _mmapStatus; set => SetProperty(ref _mmapStatus, value); }
     public string MmapStatusColor { get => _mmapStatusColor; set => SetProperty(ref _mmapStatusColor, value); }
     public string MmapCacheStatus { get => _mmapCacheStatus; set => SetProperty(ref _mmapCacheStatus, value); }
     public string MmapCacheColor { get => _mmapCacheColor; set => SetProperty(ref _mmapCacheColor, value); }
+
+    // Deploy to DMA tools
+    private bool _isDeploying;
+    private string _deployStatus = "";
+    private string _deployStatusColor = "#6E7681";
+    public bool IsDeploying { get => _isDeploying; set { SetProperty(ref _isDeploying, value); ((AsyncRelayCommand)DeployToToolsCommand)?.NotifyCanExecuteChanged(); ((AsyncRelayCommand)GenerateMmapCommand)?.NotifyCanExecuteChanged(); } }
+    public string DeployStatus { get => _deployStatus; set => SetProperty(ref _deployStatus, value); }
+    public string DeployStatusColor { get => _deployStatusColor; set => SetProperty(ref _deployStatusColor, value); }
 
     public void RefreshMmapCacheStatus()
     {
         var age = DmaTestService.GetMmapCacheAge();
         if (age == null)
         {
-            MmapCacheStatus = "No mmap cached — generate before running tests";
+            MmapCacheStatus = "No mmap cached - generate before running tests";
             MmapCacheColor  = "#F85149";
         }
         else
         {
             var days = (DateTime.Now - age.Value).TotalDays;
             var label = days < 1 ? "today" : days < 2 ? "1 day ago" : $"{(int)days} days ago";
-            MmapCacheStatus = $"mmap cached ({label}) — auto-used for all tests";
+            MmapCacheStatus = $"mmap cached ({label}) - auto-used for all tests";
             MmapCacheColor  = days > 30 ? "#E3B341" : "#3FB950";
         }
     }
@@ -109,6 +117,7 @@ public class DmaTestViewModel : BaseViewModel
     public ICommand UninstallFtdiCommand { get; }
     public ICommand RunSpeedTestCommand { get; }
     public ICommand GenerateMmapCommand { get; }
+    public ICommand DeployToToolsCommand { get; }
 
     public DmaTestViewModel(FtdiDriverService ftdiService, DmaTestService dmaTestService, LogService logService)
     {
@@ -120,7 +129,8 @@ public class DmaTestViewModel : BaseViewModel
         InstallFtdiCommand = new AsyncRelayCommand(InstallFtdiAsync, () => !IsFtdiBusy);
         UninstallFtdiCommand = new AsyncRelayCommand(UninstallFtdiAsync, () => !IsFtdiBusy);
         RunSpeedTestCommand = new AsyncRelayCommand(RunSpeedTestAsync, () => !IsTesting);
-        GenerateMmapCommand = new AsyncRelayCommand(GenerateMmapAsync, () => !IsGeneratingMmap);
+        GenerateMmapCommand = new AsyncRelayCommand(GenerateMmapAsync, () => !IsGeneratingMmap && !IsDeploying);
+        DeployToToolsCommand = new AsyncRelayCommand(DeployToToolsAsync, () => !IsDeploying && !IsGeneratingMmap);
 
         RefreshMmapCacheStatus();
     }
@@ -242,18 +252,87 @@ public class DmaTestViewModel : BaseViewModel
         }
     }
 
+    private async Task DeployToToolsAsync()
+    {
+        IsDeploying = true;
+        DeployStatus = "Preparing deployment...";
+        DeployStatusColor = "#E3B341";
+
+        try
+        {
+            // Ensure a fresh mmap exists; generate if not cached, then read content.
+            string mmapContent = "";
+            if (DmaTestService.HasCachedMmap())
+            {
+                try { mmapContent = await File.ReadAllTextAsync(DmaTestService.MmapCachePath); }
+                catch { mmapContent = ""; }
+            }
+
+            if (string.IsNullOrWhiteSpace(mmapContent))
+            {
+                DeployStatus = "No mmap cached - generating first...";
+                var genProgress = new Progress<FlashProgress>(p => DeployStatus = p.Message);
+                var gen = await _dmaTestService.GenerateMmapAsync(genProgress, CancellationToken.None);
+                if (gen.Success)
+                {
+                    mmapContent = gen.Content;
+                    RefreshMmapCacheStatus();
+                }
+                else
+                {
+                    DeployStatus = $"Could not generate mmap: {gen.ErrorMessage}. Deploying DLLs without mmap.";
+                    mmapContent = "";
+                }
+            }
+
+            var progress = new Progress<FlashProgress>(p => DeployStatus = p.Message);
+            var result = await _dmaTestService.DeployToToolsAsync(mmapContent, progress, CancellationToken.None);
+
+            if (result.Success)
+            {
+                DeployStatus =
+                    $"{result.FoldersFound} folder(s): {result.LeechcoreReplaced} leechcore, " +
+                    $"{result.FtdiChainCompleted} FTDI chain, {result.MmapWritten} mmap" +
+                    (result.Skipped.Count > 0 ? $" - {result.Skipped.Count} skipped" : "") +
+                    (result.Flagged.Count > 0 ? $" - {result.Flagged.Count} flagged" : "");
+
+                DeployStatusColor =
+                    result.FoldersFound == 0 ? "#E3B341" :
+                    result.Skipped.Count > 0 ? "#E3B341" : "#00D4AA";
+
+                if (result.FoldersFound == 0)
+                    DeployStatus = "No DMA tool folders found on any fixed drive.";
+            }
+            else
+            {
+                DeployStatus = result.Error;
+                DeployStatusColor = "#F85149";
+            }
+        }
+        catch (Exception ex)
+        {
+            DeployStatus = $"Deploy failed: {ex.Message}";
+            DeployStatusColor = "#F85149";
+            _logService.Error($"Deploy to tools error: {ex.Message}");
+        }
+        finally
+        {
+            IsDeploying = false;
+        }
+    }
+
     private void ResetResults()
     {
         TestPercentage = 0;
         TestMessage = "Starting...";
         TestStatus = "Running";
-        TestRating = "—";
-        TestRps = "—";
-        TestLatency = "—";
-        TestThroughput = "—";
-        TestMinRead = "—";
-        TestMaxRead = "—";
-        TestFailed = "—";
+        TestRating = "-";
+        TestRps = "-";
+        TestLatency = "-";
+        TestThroughput = "-";
+        TestMinRead = "-";
+        TestMaxRead = "-";
+        TestFailed = "-";
     }
 
     private void ApplyResults(DmaTestResult result)

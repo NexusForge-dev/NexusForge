@@ -8,6 +8,22 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Headless CLI path for SSH / automation verification:
+        //   NexusForge.exe --dmatest full | latency | throughput | stress
+        // Must be handled BEFORE any Avalonia bootstrap so the GUI never comes up.
+        // HeadlessDmaTest.Run attaches a console, runs the test, prints + writes the
+        // result, and Environment.Exit()s — it never returns here.
+        if (args.Length >= 1 && args[0] == "--dmatest")
+        {
+            HeadlessDmaTest.Run(args);
+            return;
+        }
+        if (args.Length >= 1 && args[0] == "--deploy")
+        {
+            HeadlessDmaTest.RunDeploy(args);
+            return;
+        }
+
         // Crash logger MUST be the very first thing — it has to be live to catch
         // anything that fails during AppBuilder.Configure or XAML load.
         CrashLogger.Install();
