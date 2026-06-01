@@ -341,7 +341,7 @@ public class DmaTestService
             var hLC = GetLeechCoreHandle(hVMM);
 
             progress?.Report(Prog("Mapping", 20, "Getting memory map..."));
-            var pages = BuildMemoryMap(hVMM);
+            var pages = BuildMemoryMap(hVMM, progress: progress);
             if (pages.Length == 0) { result.ErrorMessage = "No valid physical memory pages found"; return result; }
 
             _log.Info($"Running Latency Test for {duration.TotalSeconds:0}s ({pages.Length} pages)...");
@@ -387,7 +387,7 @@ public class DmaTestService
 
             progress?.Report(Prog("Mapping", 20, "Getting memory map..."));
             const uint readSize = 0x1000000;
-            var pages = BuildMemoryMap(hVMM, pageCount: 1000, minContiguous: readSize);
+            var pages = BuildMemoryMap(hVMM, pageCount: 1000, minContiguous: readSize, progress: progress);
             if (pages.Length == 0) { result.ErrorMessage = "No contiguous 16MB memory regions found"; return result; }
 
             _log.Info($"Running Throughput Test for {duration.TotalSeconds:0}s ({pages.Length} regions)...");
@@ -437,7 +437,7 @@ public class DmaTestService
             RunProcessLookup(hVMM, result);
 
             progress?.Report(Prog("Mapping", 20, "Getting memory map..."));
-            var allPages = BuildMemoryMap(hVMM);
+            var allPages = BuildMemoryMap(hVMM, progress: progress);
             if (allPages.Length == 0) { result.ErrorMessage = "No valid physical memory pages found"; return result; }
 
             _log.Info("Running Latency Test (5s)...");
@@ -507,9 +507,9 @@ public class DmaTestService
 
             progress?.Report(Prog("Mapping", 10, "Getting memory map..."));
             // Pages usable for small 4K reads (anywhere)
-            var smallPages = BuildMemoryMap(hVMM, pageCount: 100000, minContiguous: 0x1000);
+            var smallPages = BuildMemoryMap(hVMM, pageCount: 100000, minContiguous: 0x1000, progress: progress);
             // Pages usable for 16M reads (contiguous region required)
-            var bigPages   = BuildMemoryMap(hVMM, pageCount: 1000, minContiguous: 0x1000000);
+            var bigPages   = BuildMemoryMap(hVMM, pageCount: 1000, minContiguous: 0x1000000, progress: progress);
             if (smallPages.Length == 0)
             {
                 result.ErrorMessage = "No valid physical memory pages found";
@@ -794,14 +794,63 @@ public class DmaTestService
     /// selects the run-length needed (0x1000 = any page, 0x1000000 = inside a
     /// 16MB run), pageCount caps the returned sample.
     /// </summary>
+    // If a probe-verified mmap.txt is cached, build the confirmed pool from it
+    // directly (instant - no DMA probing needed). Falls back to ProbeConfirmedPool
+    // only when no cache exists.
+    private PhysMemPage[]? TryBuildPoolFromCachedMmap(IntPtr hVMM)
+    {
+        if (!HasCachedMmap()) return null;
+        try
+        {
+            var lines = File.ReadAllLines(MmapCachePath);
+            var ranges = new List<(ulong Pa, ulong Cb)>();
+            foreach (var line in lines)
+            {
+                var t = line.Trim();
+                if (t.Length == 0 || t[0] == '#') continue;
+                // Format: "NNNN AAAAAAAAAAAAAAAA - BBBBBBBBBBBBBBBB"
+                var parts = t.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 4) continue;
+                if (!ulong.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, null, out ulong start)) continue;
+                if (!ulong.TryParse(parts[3], System.Globalization.NumberStyles.HexNumber, null, out ulong end)) continue;
+                if (end <= start) continue;
+                ranges.Add((start, end - start + 1));
+            }
+            if (ranges.Count == 0) return null;
+
+            var hLC = GetLeechCoreHandle(hVMM);
+            InstallAllowList(hLC, ranges);
+
+            var confirmed = new List<PhysMemPage>();
+            foreach (var (pa, cb) in ranges)
+            {
+                ulong regionEnd = pa + (cb & ~(PageSize - 1));
+                for (ulong p = pa; p < regionEnd; p += PageSize)
+                    confirmed.Add(new PhysMemPage { PageBase = p, RemainingBytes = regionEnd - p });
+            }
+            if (confirmed.Count == 0) return null;
+
+            _log.Info($"Pool from cached mmap: {confirmed.Count:N0} pages, {ranges.Count} runs");
+            var pool = confirmed.ToArray();
+            Random.Shared.Shuffle(pool);
+            return pool;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Cached mmap parse failed: {ex.Message} - falling back to live probe.");
+            return null;
+        }
+    }
+
     private PhysMemPage[] BuildMemoryMap(
-        IntPtr hVMM, int pageCount = 100000, uint minContiguous = 0x1000)
+        IntPtr hVMM, int pageCount = 100000, uint minContiguous = 0x1000,
+        IProgress<FlashProgress>? progress = null)
     {
         // Probe ONCE per connection; reuse the confirmed pool (and the already-
         // installed allow-list) for every subsequent call with a different filter.
         if (_confirmedPool == null || _poolVmm != hVMM)
         {
-            _confirmedPool = ProbeConfirmedPool(hVMM);
+            _confirmedPool = TryBuildPoolFromCachedMmap(hVMM) ?? ProbeConfirmedPool(hVMM, progress);
             _poolVmm = hVMM;
         }
 
@@ -816,7 +865,7 @@ public class DmaTestService
     // page for readability (retry-once), coalesce confirmed pages into contiguous
     // runs, install the leechcore allow-list from those runs, and return a
     // SHUFFLED array of confirmed pages with honest per-page RemainingBytes.
-    private PhysMemPage[] ProbeConfirmedPool(IntPtr hVMM)
+    private PhysMemPage[] ProbeConfirmedPool(IntPtr hVMM, IProgress<FlashProgress>? progress = null)
     {
         var hLC = GetLeechCoreHandle(hVMM);
 
@@ -878,6 +927,9 @@ public class DmaTestService
                     bool ok = VmmNative.LcRead(hLC, p, (uint)PageSize, pb);
                     if (!ok) ok = VmmNative.LcRead(hLC, p, (uint)PageSize, pb); // retry once
                     probed++;
+                    if (probed % 5000 == 0)
+                        progress?.Report(Prog("Mapping", 20,
+                            $"Probing physical memory... {probed:N0}/{candidatePages:N0} pages, {confirmed.Count:N0} confirmed"));
 
                     if (ok)
                     {
