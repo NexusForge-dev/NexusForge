@@ -16,6 +16,9 @@ public class App : Application
     private IServiceProvider? _services;
     public IServiceProvider? Services => _services;
 
+    private bool _updating;
+    private UpdateWindow? _updateWindow;
+
     public override void Initialize()
     {
         try
@@ -76,28 +79,72 @@ public class App : Application
 
             splash.Closed += (_, _) =>
             {
+                // If an update has taken over, the UpdateWindow owns the screen until the
+                // swap + relaunch; do NOT reveal the main window underneath it.
+                if (_updating) return;
                 desktop.MainWindow = mainWindow;
                 mainWindow.Show();
             };
 
-            // Auto-update runs in the background after a short settle period. Wrapped
-            // tightly so a network/parse blowup never bubbles to the dispatcher.
+            // Auto-update runs in the background after a short settle period. A visible
+            // UpdateWindow with live progress is shown the moment an update is found, so
+            // the app no longer silently vanishes during the swap (the flash-and-vanish
+            // perception). Wrapped tightly so a network/parse blowup never bubbles to the
+            // dispatcher.
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(4000);
+                    await Task.Delay(1200);
                     var updater = _services.GetRequiredService<AutoUpdateService>();
-                    bool shouldRestart = await updater.CheckAndApplyUpdateAsync();
-                    if (shouldRestart)
-                    {
+
+                    var progress = new Progress<UpdateProgress>(p =>
                         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            switch (p.Stage)
+                            {
+                                case UpdateStage.Found:
+                                    _updating = true;
+                                    if (_updateWindow == null)
+                                    {
+                                        _updateWindow = new UpdateWindow();
+                                        _updateWindow.Show();
+                                        // Own MainWindow so closing the splash can't shut us down.
+                                        desktop.MainWindow = _updateWindow;
+                                    }
+                                    if (mainWindow.IsVisible) mainWindow.Hide();
+                                    _updateWindow.SetStatus($"Found v{p.Version}. Preparing download...");
+                                    break;
+                                case UpdateStage.Downloading:
+                                    _updateWindow?.SetProgress(p.BytesReceived, p.TotalBytes);
+                                    break;
+                                case UpdateStage.Applying:
+                                    _updateWindow?.SetApplying();
+                                    break;
+                            }
+                        }));
+
+                    bool shouldRestart = await updater.CheckAndApplyUpdateAsync(progress);
+
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        if (shouldRestart)
                         {
                             CrashLogger.WriteLine("AutoUpdate: applying update, exiting cleanly.");
                             CrashLogger.MarkCleanExit();
                             Environment.Exit(0);
-                        });
-                    }
+                        }
+                        else if (_updating)
+                        {
+                            // Update was found but did not complete (download/verify failed):
+                            // tear down the update UI and fall back to the normal app window.
+                            _updateWindow?.Close();
+                            _updateWindow = null;
+                            _updating = false;
+                            desktop.MainWindow = mainWindow;
+                            if (!mainWindow.IsVisible) mainWindow.Show();
+                        }
+                    });
                 }
                 catch (Exception ex)
                 {

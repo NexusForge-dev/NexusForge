@@ -25,7 +25,7 @@ public class AutoUpdateService
         _settings = settings;
     }
 
-    public async Task<bool> CheckAndApplyUpdateAsync()
+    public async Task<bool> CheckAndApplyUpdateAsync(IProgress<UpdateProgress>? progress = null)
     {
         try
         {
@@ -105,6 +105,7 @@ public class AutoUpdateService
                 return false;
             }
 
+            progress?.Report(new UpdateProgress { Stage = UpdateStage.Found, Version = remote });
             _logService.Info($"Downloading update (~{expectedSize / 1024} KB)...");
             var temp = Path.Combine(Path.GetTempPath(), $"NexusForge_update_{Guid.NewGuid():N}.exe");
 
@@ -119,9 +120,37 @@ public class AutoUpdateService
             // API "size" because some redirects don't preserve it).
             long contentLength = dl.Content.Headers.ContentLength ?? expectedSize;
 
-            await using (var fs = File.Create(temp))
+            // Stream the download with progress reporting so the UpdateWindow can show
+            // live MB / % instead of the app silently vanishing during the swap.
+            progress?.Report(new UpdateProgress
             {
-                await dl.Content.CopyToAsync(fs);
+                Stage = UpdateStage.Downloading, Version = remote, BytesReceived = 0, TotalBytes = contentLength
+            });
+            await using (var fs = File.Create(temp))
+            await using (var src = await dl.Content.ReadAsStreamAsync())
+            {
+                var buffer = new byte[81920];
+                long received = 0;
+                long sinceReport = 0;
+                int read;
+                while ((read = await src.ReadAsync(buffer)) > 0)
+                {
+                    await fs.WriteAsync(buffer.AsMemory(0, read));
+                    received += read;
+                    sinceReport += read;
+                    if (sinceReport >= 262144)
+                    {
+                        sinceReport = 0;
+                        progress?.Report(new UpdateProgress
+                        {
+                            Stage = UpdateStage.Downloading, Version = remote, BytesReceived = received, TotalBytes = contentLength
+                        });
+                    }
+                }
+                progress?.Report(new UpdateProgress
+                {
+                    Stage = UpdateStage.Downloading, Version = remote, BytesReceived = received, TotalBytes = contentLength
+                });
             }
 
             // Verify the downloaded file is intact: header is MZ AND size matches
@@ -232,6 +261,7 @@ public class AutoUpdateService
             File.WriteAllText(bat, script);
 
             _logService.Info("Update downloaded. Restarting to apply...");
+            progress?.Report(new UpdateProgress { Stage = UpdateStage.Applying, Version = remote });
             CrashLogger.WriteLine($"AutoUpdate: launching update bat for v{remote} ({actualSize} bytes), attempt {attempts + 1}");
 
             Process.Start(new ProcessStartInfo

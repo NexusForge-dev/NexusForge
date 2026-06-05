@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NexusForge.Views.UpdateWindow"
+        Title="Updating NexusForge"
+        Width="440" Height="200"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="None"
+        TransparencyLevelHint="AcrylicBlur"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="True">
+
+  <Border CornerRadius="16" ClipToBounds="True">
+    <Border.Background>
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#0D1117" Offset="0"/>
+        <GradientStop Color="#111922" Offset="0.5"/>
+        <GradientStop Color="#0A1628" Offset="1"/>
+      </LinearGradientBrush>
+    </Border.Background>
+
+    <Border BorderBrush="#1E2A3A" BorderThickness="1" CornerRadius="16">
+      <StackPanel Margin="30,28,30,28" Spacing="18" VerticalAlignment="Center">
+
+        <!-- Header: logo + title + status -->
+        <StackPanel Orientation="Horizontal" Spacing="16">
+          <Border Width="48" Height="48" CornerRadius="13" VerticalAlignment="Center">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#00D4AA" Offset="0"/>
+                <GradientStop Color="#00A88A" Offset="1"/>
+              </LinearGradientBrush>
+            </Border.Background>
+            <Border.BoxShadow>0 4 18 0 #4000D4AA</Border.BoxShadow>
+            <TextBlock Text="N" Foreground="#0A0D14" FontSize="26" FontWeight="Bold"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+
+          <StackPanel VerticalAlignment="Center" Spacing="3">
+            <TextBlock Text="Updating NexusForge"
+                       FontSize="17" FontWeight="Bold" Foreground="#E6EDF3" />
+            <TextBlock Name="StatusText"
+                       Text="Preparing update..."
+                       FontSize="11.5" Foreground="#8B949E" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Progress -->
+        <StackPanel Spacing="8">
+          <ProgressBar Name="Bar"
+                       Minimum="0" Maximum="100" Value="0"
+                       Height="6"
+                       Foreground="#00D4AA"
+                       Background="#161B22"
+                       IsIndeterminate="True" />
+          <TextBlock Name="DetailText"
+                     Text=""
+                     FontSize="11" Foreground="#6E7681"
+                     HorizontalAlignment="Right" />
+        </StackPanel>
+
+      </StackPanel>
+    </Border>
+  </Border>
+</Window>
